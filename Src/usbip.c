@@ -187,10 +187,12 @@ USBD_StatusTypeDef USBD_LL_Transmit(USBD_HandleTypeDef *pdev, uint8_t ep, const 
   if (!initialized) return USBD_OK;
   DBG_MSG("ep %d size %d\n", ep, size);
   ep = ep & 0x7F;
-  memcpy(endpoints[ep].tx_buffer + endpoints[ep].tx_size,
-          pbuf, size);
-  endpoints[ep].tx_size += size;
-  if (ep != 0) USBD_LL_DataInStage(&usb_device, ep, NULL);
+  if (size > 0) { // skip ZLP
+    memcpy(endpoints[ep].tx_buffer + endpoints[ep].tx_size,
+            pbuf, size);
+    endpoints[ep].tx_size += size;
+  }
+  // if (ep != 0) USBD_LL_DataInStage(&usb_device, ep, NULL);
   return USBD_OK;
 }
 uint32_t USBD_LL_GetRxDataSize(USBD_HandleTypeDef *pdev, uint8_t ep) { return endpoints[ep].rx_size; }
@@ -239,7 +241,7 @@ void sigint_handler() {
 
 void usbip_payload_rx(int client_fd, uint32_t ep) {
   uint32_t transfer_buffer_length = ntohl(endpoints[ep].submit.transfer_buffer_length);
-  printf("[DBG] usbip_payload_rx:\tTransfer buffer: %u bytes\n", transfer_buffer_length);
+  // printf("[DBG] usbip_payload_rx:\tTransfer buffer: %u bytes\n", transfer_buffer_length);
   while (transfer_buffer_length > 0) {
     uint8_t *transfer_buffer = endpoints[ep].rx_buffer;
     uint32_t transfer_size = endpoints[ep].rx_size;
@@ -247,10 +249,10 @@ void usbip_payload_rx(int client_fd, uint32_t ep) {
     if (read_exact(client_fd, transfer_buffer, transfer_size) < 0) return;
     transfer_buffer_length -= transfer_size;
 
-    for (int i = 0; i < transfer_size; i++) {
-      printf(" %02X", transfer_buffer[i]);
-    }
-    printf("\n");
+    // for (int i = 0; i < transfer_size; i++) {
+    //   printf(" %02X", transfer_buffer[i]);
+    // }
+    // printf("\n");
 
     endpoints[ep].rx_size = transfer_size;
     USBD_LL_DataOutStage(&usb_device, ep, endpoints[ep].rx_buffer);
@@ -259,7 +261,7 @@ void usbip_payload_rx(int client_fd, uint32_t ep) {
 
 void usbip_tx_submit_zero(int client_fd, uint8_t ep) {
   // mainly used for BULK OUT, and INTR OUT
-  printf("<- RET_SUBMIT_ZERO: seq %d\n", ntohl(endpoints[ep].submit.seq_num));
+  // printf("<- RET_SUBMIT_ZERO: seq %d\n", ntohl(endpoints[ep].submit.seq_num));
 
   struct RetSubmitBody body;
   body.seq_num = endpoints[ep].submit.seq_num;
@@ -308,8 +310,8 @@ void usbip_tx_submit(int client_fd, uint8_t ep) {
   body.number_of_packets = 0;
   body.error_count = 0;
   bzero(body.setup, 8);
-  printf("<- RET_SUBMIT: seq %d size %d\n",
-      ntohl(submit->seq_num), actual_length);
+  // printf("<- RET_SUBMIT: seq %d size %d\n",
+  //     ntohl(submit->seq_num), actual_length);
 
   uint8_t command[4] = {0, 0, 0, 3};
   write_exact(client_fd, command, sizeof(command));
@@ -326,7 +328,7 @@ void usbip_tx_submit(int client_fd, uint8_t ep) {
 
   // clear out processed request
   if (endpoints[ep].tx_pos == endpoints[ep].tx_size) {
-    printf("-- RET_SUBMIT: clear ep %d\n", ep);
+    // printf("-- RET_SUBMIT: clear ep %d\n", ep);
     endpoint_clear(ep);
     // for INTR IN only
     endpoint_mark_ready(ep, 0);
@@ -569,6 +571,7 @@ int usbip_submit(int client_fd) {
       device_loop(0);
       printf("<-CTL\tIN\n");
       usbip_tx_submit(client_fd, ep);
+      USBD_LL_DataInStage(&usb_device, ep, NULL);
     } else {
       // control in:
       printf("->CONTROL IN seq %d\n", seq_num);
@@ -578,6 +581,7 @@ int usbip_submit(int client_fd) {
       printf("<-CTL\tIN\n");
       device_loop(0);
       usbip_tx_submit(client_fd, ep);
+      USBD_LL_DataInStage(&usb_device, ep, NULL);
       // FIXME: should be here according to usb protocol?
       //        not clear for usbip protocol
       //printf("->CTL\tOUT\n");
@@ -587,31 +591,32 @@ int usbip_submit(int client_fd) {
     // bulk transfer
     if (direction_out) {
       // bulk out
-      printf("->BULK OUT ep %d seq %d\n", ep, seq_num);
+      // printf("->BULK OUT ep %d seq %d\n", ep, seq_num);
       usbip_payload_rx(client_fd, ep);
       usbip_tx_submit_zero(client_fd, ep);
-      printf("<-BULK OUT\n");
+      // printf("<-BULK OUT\n");
     } else {
       // bulk in
-      printf("->BULK IN ep %d seq %d\n", ep, seq_num);
+      // printf("->BULK IN ep %d seq %d\n", ep, seq_num);
       device_loop(0);
       usbip_tx_submit(client_fd, ep);
-      printf("<-BULK IN\n");
+      USBD_LL_DataInStage(&usb_device, ep, NULL);
+      // printf("<-BULK IN\n");
     }
   } else if (endpoints[ep].type == USBD_EP_TYPE_INTR) {
     // interrupt transfer
     if (direction_out) {
       // intr out
-      printf("->INTR OUT ep %d seq %d\n", ep, seq_num);
+      // printf("->INTR OUT ep %d seq %d\n", ep, seq_num);
       usbip_payload_rx(client_fd, ep);
       device_loop(0);
       usbip_tx_submit_zero(client_fd, ep); // OUT ZERO-LENGTH ACK
       if (endpoint_ready(ep)) // async IN reply
         usbip_tx_submit(client_fd, ep);
-      printf("<-INTR OUT\n");
+      // printf("<-INTR OUT\n");
     } else {
       // intr in
-      printf("->INTR IN ep %d seq %d\n", ep, seq_num);
+      // printf("->INTR IN ep %d seq %d\n", ep, seq_num);
       if (!endpoint_ready(ep)) {
         printf("-- DataIn\n");
         USBD_LL_DataInStage(&usb_device, ep, NULL);
@@ -619,7 +624,7 @@ int usbip_submit(int client_fd) {
       } else {
         usbip_tx_submit(client_fd, ep);
       }
-      printf("<-INTR IN\n");
+      // printf("<-INTR IN\n");
     }
   } else {
       printf("SUBMIT unhandled: %d\n", endpoints[ep].type);
@@ -677,7 +682,7 @@ void usbip_loop(int client_fd) {
       printf("-> OP_UNKNOWN\n");
       assert(false);
     }
-    printf("\n");
+    // printf("\n");
   }
 }
 
