@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "profiles": {
+    "smoke": {
+      "firmwares": ["oldest-supported", "latest", "head"]
+    },
+    "nightly": {
+      "firmwares": ["all-supported-releases", "head"]
+    }
+  }
+}

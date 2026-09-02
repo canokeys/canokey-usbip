@@ -102,7 +102,11 @@ struct Endpoint {
 
 // global state
 // CTRL INTR BULK
+#ifdef CANOKEY_USB_STATIC_LAYOUT
+#define EP_NUM 4
+#else
 #define EP_NUM 3
+#endif
 struct Endpoint endpoints[EP_NUM];
 int initialized = 0;
 
@@ -157,6 +161,10 @@ void endpoints_init() {
 // mock device functions
 
 USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev) { return USBD_OK; }
+/* Required by canokey-core 3.0.x after all class endpoints are opened. */
+#ifdef CANOKEY_USBD_LL_INIT_DONE
+void USBD_LL_Init_Done(void) {}
+#endif
 USBD_StatusTypeDef USBD_LL_DeInit(USBD_HandleTypeDef *pdev) { return USBD_OK; }
 USBD_StatusTypeDef USBD_LL_Start(USBD_HandleTypeDef *pdev) { return USBD_OK; }
 USBD_StatusTypeDef USBD_LL_Stop(USBD_HandleTypeDef *pdev) { return USBD_OK; }
@@ -179,6 +187,10 @@ USBD_StatusTypeDef USBD_LL_PrepareReceive(USBD_HandleTypeDef *pdev, uint8_t ep, 
   ep = ep & 0x7F;
   endpoints[ep].rx_buffer = pbuf;
   endpoints[ep].rx_size = size;
+#ifdef CANOKEY_USBD_COMPACT_STATE
+  if (ep == 0 && pdev->ep0_out.rem_length > USB_MAX_EP0_SIZE)
+    pdev->ep0_out.rem_length = USB_MAX_EP0_SIZE;
+#endif
   return USBD_OK;
 }
 USBD_StatusTypeDef USBD_LL_Transmit(USBD_HandleTypeDef *pdev, uint8_t ep, const uint8_t *pbuf, uint16_t size) {
@@ -192,13 +204,26 @@ USBD_StatusTypeDef USBD_LL_Transmit(USBD_HandleTypeDef *pdev, uint8_t ep, const 
             pbuf, size);
     endpoints[ep].tx_size += size;
   }
+#ifdef CANOKEY_USBD_COMPACT_STATE
+  if (ep == 0 && pdev->ep0_in.rem_length > USB_MAX_EP0_SIZE)
+    pdev->ep0_in.rem_length = USB_MAX_EP0_SIZE;
+#endif
   // if (ep != 0) USBD_LL_DataInStage(&usb_device, ep, NULL);
   return USBD_OK;
 }
 uint32_t USBD_LL_GetRxDataSize(USBD_HandleTypeDef *pdev, uint8_t ep) { return endpoints[ep].rx_size; }
 
+static void compat_device_loop(void) {
+#ifdef CANOKEY_DEVICE_LOOP_NO_ARGS
+  device_loop();
+#else
+  device_loop(0);
+#endif
+}
+
 /* Override the function defined in usb_device.c */
 void usb_resources_alloc(void) {
+#ifndef CANOKEY_USB_STATIC_LAYOUT
   uint8_t iface = 0;
   uint8_t ep = 1;
 
@@ -224,6 +249,7 @@ void usb_resources_alloc(void) {
   //EP_TABLE.kbd_hid = ep;
   //IFACE_TABLE.kbd_hid = iface;
   //EP_SIZE_TABLE.kbd_hid = 8;
+#endif
 }
 
 void sigint_handler() {
@@ -399,11 +425,11 @@ int usbip_devlist(int client_fd) {
       0x00,
       0x03,
       // idVendor
-      LO(USBD_VID),
       HI(USBD_VID),
+      LO(USBD_VID),
       // idProduct
-      LO(USBD_PID),
       HI(USBD_PID),
+      LO(USBD_PID),
       // bcdDevice
       0x00,
       0x01,
@@ -515,11 +541,11 @@ int usbip_import(int client_fd) {
       0x00,
       0x03,
       // idVendor
-      LO(USBD_VID),
       HI(USBD_VID),
+      LO(USBD_VID),
       // idProduct
-      LO(USBD_PID),
       HI(USBD_PID),
+      LO(USBD_PID),
       // bcdDevice
       0x00,
       0x01,
@@ -568,7 +594,7 @@ int usbip_submit(int client_fd) {
       USBD_LL_SetupStage(&usb_device, body.setup);
       printf("->CTL\tOUT\n");
       usbip_payload_rx(client_fd, ep);
-      device_loop(0);
+      compat_device_loop();
       printf("<-CTL\tIN\n");
       usbip_tx_submit(client_fd, ep);
       USBD_LL_DataInStage(&usb_device, ep, NULL);
@@ -579,7 +605,7 @@ int usbip_submit(int client_fd) {
       printf("--CTL\tSETUP\n");
       USBD_LL_SetupStage(&usb_device, body.setup);
       printf("<-CTL\tIN\n");
-      device_loop(0);
+      compat_device_loop();
       usbip_tx_submit(client_fd, ep);
       USBD_LL_DataInStage(&usb_device, ep, NULL);
       // FIXME: should be here according to usb protocol?
@@ -598,7 +624,7 @@ int usbip_submit(int client_fd) {
     } else {
       // bulk in
       // printf("->BULK IN ep %d seq %d\n", ep, seq_num);
-      device_loop(0);
+      compat_device_loop();
       usbip_tx_submit(client_fd, ep);
       USBD_LL_DataInStage(&usb_device, ep, NULL);
       // printf("<-BULK IN\n");
@@ -609,7 +635,7 @@ int usbip_submit(int client_fd) {
       // intr out
       // printf("->INTR OUT ep %d seq %d\n", ep, seq_num);
       usbip_payload_rx(client_fd, ep);
-      device_loop(0);
+      compat_device_loop();
       usbip_tx_submit_zero(client_fd, ep); // OUT ZERO-LENGTH ACK
       if (endpoint_ready(ep)) // async IN reply
         usbip_tx_submit(client_fd, ep);
@@ -736,8 +762,10 @@ int main(int argc, char **argv) {
   uint8_t set_address[] = {0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
   USBD_LL_SetupStage(&usb_device, set_address);
   // unlimited max packet for ep0
+#ifndef CANOKEY_USBD_COMPACT_STATE
   usb_device.ep_in[0].maxpacket = -1;
   usb_device.ep_out[0].maxpacket = -1;
+#endif
 
   // access canokey_file
   if (access(canokey_file, F_OK) == 0) {

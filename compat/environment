@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+missing=0
+for command in cmake git python3 usbip; do
+  if command -v "$command" >/dev/null 2>&1; then
+    printf '%-12s %s\n' "$command" "$(command -v "$command")"
+  else
+    printf '%-12s missing\n' "$command"
+    missing=1
+  fi
+done
+
+if python3 -c 'import jinja2, jsonschema' >/dev/null 2>&1; then
+  printf '%-12s available\n' python-codegen
+else
+  printf '%-12s missing jinja2/jsonschema\n' python-codegen
+  missing=1
+fi
+
+if [[ "$(uname -s)" != Linux ]]; then
+  printf '%-12s Linux required for attach (current: %s)\n' kernel "$(uname -s)"
+  missing=1
+elif [[ -d /sys/devices/platform/vhci_hcd.0 || -d /sys/module/vhci_hcd ]]; then
+  printf '%-12s available\n' vhci_hcd
+elif command -v modprobe >/dev/null 2>&1; then
+  printf '%-12s available only after modprobe\n' vhci_hcd
+else
+  printf '%-12s unavailable (modprobe missing)\n' vhci_hcd
+  missing=1
+fi
+
+if [[ "$(uname -s)" == Linux ]]; then
+  if [[ -d /dev/bus/usb ]]; then
+    printf '%-12s available\n' usbfs
+  else
+    printf '%-12s missing /dev/bus/usb\n' usbfs
+    missing=1
+  fi
+fi
+
+exit "$missing"

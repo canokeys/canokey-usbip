@@ -1,0 +1,118 @@
+name: CanoKey USB/IP integration
+
+on:
+  workflow_call:
+    inputs:
+      core-ref:
+        description: canokey-core tag, branch, or commit (ignored when core-dir is set)
+        required: false
+        type: string
+        default: "3.0.3"
+      core-dir:
+        description: canokey-core directory relative to the caller checkout
+        required: false
+        type: string
+        default: ""
+      test-command:
+        description: Caller-owned command, run from the caller checkout
+        required: true
+        type: string
+      timeout:
+        description: Readiness and test command timeout in seconds
+        required: false
+        type: number
+        default: 120
+      usbip-ref:
+        description: canokey-usbip revision to checkout
+        required: false
+        type: string
+        default: master
+      caller-submodules:
+        description: Recursively initialize caller repository submodules
+        required: false
+        type: boolean
+        default: false
+      install-dependencies:
+        description: Install Ubuntu user-space dependencies (the kernel module must already be available)
+        required: false
+        type: boolean
+        default: false
+      touch:
+        description: Enable firmware user-presence checks and touch simulation
+        required: false
+        type: boolean
+        default: false
+      runs-on:
+        description: JSON array of self-hosted runner labels
+        required: false
+        type: string
+        default: '["self-hosted","linux","canokey-usbip"]'
+      artifact-name:
+        description: Unique artifact name, especially for matrix jobs
+        required: false
+        type: string
+        default: canokey-usbip-artifacts
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 45
+    steps:
+      - name: Check out caller revision
+        uses: actions/checkout@v4
+        with:
+          path: caller
+          submodules: ${{ inputs.caller-submodules && 'recursive' || 'false' }}
+
+      - name: Check out virtual hardware harness
+        uses: actions/checkout@v4
+        with:
+          repository: canokeys/canokey-usbip
+          ref: ${{ inputs.usbip-ref }}
+          path: canokey-usbip
+          submodules: false
+
+      - name: Install Ubuntu dependencies
+        if: inputs.install-dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ca-certificates cmake git hwdata kmod libccid libpcsclite1 pcsc-tools pcscd pkg-config python3 python3-jinja2 python3-jsonschema udev usbutils linux-tools-common
+
+      - name: Check runner environment
+        shell: bash
+        run: ./canokey-usbip/compat/environment
+
+      - name: Run caller tests against virtual CanoKey
+        working-directory: caller
+        shell: bash
+        env:
+          CORE_REF: ${{ inputs.core-ref }}
+          CORE_DIR: ${{ inputs.core-dir }}
+          TEST_COMMAND: ${{ inputs.test-command }}
+          TEST_TIMEOUT: ${{ inputs.timeout }}
+          ENABLE_TOUCH: ${{ inputs.touch }}
+          HARNESS: ${{ github.workspace }}/canokey-usbip/compat/run
+          ARTIFACTS: ${{ github.workspace }}/artifacts
+        run: |
+          args=(--test-command "$TEST_COMMAND" --timeout "$TEST_TIMEOUT" --output-dir "$ARTIFACTS")
+          if [[ -n "$CORE_DIR" ]]; then
+            args+=(--core-dir "$PWD/$CORE_DIR")
+          else
+            args+=(--core-ref "$CORE_REF")
+          fi
+          if [[ "$ENABLE_TOUCH" == "true" ]]; then
+            args+=(--touch)
+          fi
+          "$HARNESS" "${args[@]}"
+
+      - name: Upload USB/IP diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: artifacts/
+          if-no-files-found: warn

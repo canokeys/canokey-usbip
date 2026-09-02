@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/canokeys/canokey-core.git",
+  "aliases": {
+    "oldest-supported": "1.5.2",
+    "latest": "3.0.3",
+    "head": "head"
+  },
+  "firmwares": [
+    {
+      "id": "1.5.2",
+      "ref": "1.5.2",
+      "verified_sha": "b16e8c517ed72fe26e5101b450a99df2b3526aa1",
+      "adapter": "device-loop-with-argument",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "1.6.0",
+      "ref": "1.6.0",
+      "verified_sha": "e022053a87e10d5d1e655f9cc59ecb0207160e09",
+      "adapter": "device-loop-with-argument",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "1.6.2",
+      "ref": "1.6.2",
+      "verified_sha": "0ac63dfb52805c77af5b19e51b9c5ae19a741c92",
+      "adapter": "device-loop-with-argument",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "2.0.0",
+      "ref": "2.0.0",
+      "verified_sha": "e90f851fe220082a9864136862d3253ab57c96f0",
+      "adapter": "device-loop-with-argument",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "2.0.1",
+      "ref": "2.0.1",
+      "verified_sha": "4442ac5ca777e8bfca39d4bf4996e2b0c441ffd6",
+      "adapter": "device-loop-with-argument",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "3.0.0",
+      "ref": "3.0.0",
+      "verified_sha": "e33c3d55d390b56a417d5dbf0c568b28aae8cad6",
+      "adapter": "device-loop-no-args-usbd-init-done",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "3.0.2",
+      "ref": "3.0.2",
+      "verified_sha": "0a218f413d72ee39bf4067ea363b1f63300ed4ad",
+      "adapter": "device-loop-no-args-usbd-init-done",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "3.0.3",
+      "ref": "3.0.3",
+      "verified_sha": "7644370f0c16d5b5e0d2f503e6c47bd39aaa0e2f",
+      "adapter": "device-loop-no-args-usbd-init-done",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "head",
+      "ref": "master",
+      "verified_sha": "8b1681468ec29fd90990efa4b37f61699e83699a",
+      "adapter": "device-loop-with-argument",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    }
+  ]
+}
