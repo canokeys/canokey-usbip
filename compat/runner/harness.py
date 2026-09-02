@@ -79,6 +79,7 @@ class CoreSource:
     patches: tuple[str, ...] = ()
     usb_vid: str = DEFAULT_VID
     usb_pid: str = DEFAULT_PID
+    firmware_version: str | None = None
 
 
 def run_command(
@@ -413,6 +414,15 @@ class Harness:
                 ) from exc
         return patch_names
 
+    def firmware_version_for_sha(self, sha: str) -> str | None:
+        catalog = json.loads(
+            (self.options.repo_dir / "compat/config/firmwares.yaml").read_text()
+        )
+        for mapping in catalog["release_mappings"]:
+            if mapping["core_commit"] == sha:
+                return mapping["id"]
+        return None
+
     @staticmethod
     def core_usb_identity(destination: Path) -> tuple[str, str]:
         descriptor = destination / "interfaces" / "USB" / "device" / "usbd_desc.h"
@@ -444,7 +454,16 @@ class Harness:
             sha = git_value(destination, "rev-parse", "HEAD")
             patches = self.apply_core_compatibility(destination, sha)
             usb_vid, usb_pid = self.core_usb_identity(destination)
-            return CoreSource(destination, sha, self.options.core_ref, False, patches, usb_vid, usb_pid)
+            return CoreSource(
+                destination,
+                sha,
+                self.options.core_ref,
+                False,
+                patches,
+                usb_vid,
+                usb_pid,
+                firmware_version=self.firmware_version_for_sha(sha),
+            )
 
         source = self.options.core_dir or self.options.repo_dir / "canokey-core"
         if not (source / "CMakeLists.txt").exists():
@@ -460,10 +479,24 @@ class Harness:
         ref = "external" if self.options.core_dir else "submodule"
         patches = self.apply_core_compatibility(destination, sha)
         usb_vid, usb_pid = self.core_usb_identity(destination)
-        return CoreSource(destination, sha, ref, dirty, patches, usb_vid, usb_pid)
+        return CoreSource(
+            destination,
+            sha,
+            ref,
+            dirty,
+            patches,
+            usb_vid,
+            usb_pid,
+            firmware_version=self.firmware_version_for_sha(sha),
+        )
 
     def build(self) -> Path:
         assert self.core
+        if not self.core.firmware_version:
+            raise PhaseError(
+                "resolve-core",
+                f"core {self.core.sha} has no firmware version mapping",
+            )
         if self.options.build_dir:
             build_dir = self.options.build_dir.resolve()
         elif self.options.build_only:
@@ -477,6 +510,7 @@ class Harness:
                     "cmake", "-S", str(self.options.repo_dir), "-B", str(build_dir),
                     f"-DCANOKEY_CORE_DIR={self.core.path}",
                     f"-DCANOKEY_CORE_SHA={self.core.sha}",
+                    f"-DCANOKEY_FIRMWARE_VERSION={self.core.firmware_version}",
                     "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
                     "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
                 ], log=log)
@@ -535,6 +569,7 @@ class Harness:
             "CANOKEY_USBIP": "1",
             "CANOKEY_CORE_REF": self.core.ref,
             "CANOKEY_CORE_SHA": self.core.sha,
+            "CANOKEY_FIRMWARE_VERSION": self.core.firmware_version,
             "CANOKEY_USBIP_SHA": self.metadata["canokey_usbip_sha"],
             "CANOKEY_STORAGE": str(self.storage),
             "CANOKEY_TEST_OUTPUT": str(self.output_dir),
@@ -579,6 +614,7 @@ class Harness:
             "canokey_usbip_sha": git_value(self.options.repo_dir, "rev-parse", "HEAD"),
             "canokey_usbip_dirty": bool(git_value(self.options.repo_dir, "status", "--porcelain", default="")),
             "canokey_core_sha": "unknown",
+            "canokey_firmware_version": None,
             "canokey_core_ref": requested_ref,
             "canokey_core_dirty": None,
             "canokey_core_compat_patches": [],
@@ -603,6 +639,7 @@ class Harness:
         metadata = self.base_metadata()
         metadata.update({
             "canokey_core_sha": self.core.sha,
+            "canokey_firmware_version": self.core.firmware_version,
             "canokey_core_ref": self.core.ref,
             "canokey_core_dirty": self.core.dirty,
             "canokey_core_compat_patches": list(self.core.patches),

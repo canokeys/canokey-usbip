@@ -92,7 +92,13 @@ class FakeHarness(Harness):
             raise self.resolve_error
         path = self.workspace / "core"
         path.mkdir()
-        return CoreSource(path, "a" * 40, self.options.core_ref or "external", False)
+        return CoreSource(
+            path,
+            "69e562bcb07eedda015aae6064870c8548571e2b",
+            self.options.core_ref or "external",
+            False,
+            firmware_version="3.0.1",
+        )
 
     def build(self):
         if self.build_error:
@@ -238,11 +244,40 @@ class HarnessTests(unittest.TestCase):
         command = (
             "test \"$CANOKEY_USBIP\" = 1 && "
             "test -n \"$CANOKEY_CORE_SHA\" && "
+            "test \"$CANOKEY_FIRMWARE_VERSION\" = 3.0.1 && "
             "test -n \"$CANOKEY_STORAGE\" && "
             "test -n \"$CANOKEY_TEST_OUTPUT\""
         )
         runner = FakeHarness(self.options(test_command=command))
         self.assertEqual(runner.execute(), 0)
+        self.assertEqual(self.metadata()["canokey_firmware_version"], "3.0.1")
+
+    def test_firmware_version_is_resolved_from_exact_core_sha(self):
+        runner = Harness(self.options())
+        self.assertEqual(
+            runner.firmware_version_for_sha(
+                "69e562bcb07eedda015aae6064870c8548571e2b"
+            ),
+            "3.0.1",
+        )
+        self.assertIsNone(runner.firmware_version_for_sha("f" * 40))
+
+    def test_build_rejects_core_without_firmware_version_mapping(self):
+        runner = Harness(self.options())
+        runner.core = CoreSource(
+            self.root / "core",
+            "f" * 40,
+            "unknown-ref",
+            False,
+        )
+
+        with self.assertRaisesRegex(
+            PhaseError,
+            "core f{40} has no firmware version mapping",
+        ) as raised:
+            runner.build()
+
+        self.assertEqual(raised.exception.phase, "resolve-core")
 
     def test_legacy_patch_is_applied_only_to_core_snapshot(self):
         sha = next(iter(CORE_COMPAT_PATCHES))
@@ -376,7 +411,13 @@ class HarnessTests(unittest.TestCase):
         requirements = ("usb", "ccid", "pcsc")
         runner = FakeHarness(self.options(readiness_requirements=requirements))
         runner.workspace.mkdir(parents=True)
-        runner.core = CoreSource(runner.workspace / "core", "a" * 40, "external", False)
+        runner.core = CoreSource(
+            runner.workspace / "core",
+            "a" * 40,
+            "external",
+            False,
+            firmware_version="3.0.1",
+        )
         runner.binary = runner.workspace / "canokey-usbip"
 
         runner.write_state(123, "0")

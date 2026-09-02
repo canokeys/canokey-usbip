@@ -94,7 +94,9 @@ Build without attaching hardware:
 Direct CMake also supports external core trees without changing the submodule pointer:
 
 ```bash
-cmake -S . -B build -DCANOKEY_CORE_DIR=/workspace/canokey-core
+cmake -S . -B build \
+  -DCANOKEY_CORE_DIR=/workspace/canokey-core \
+  -DCANOKEY_FIRMWARE_VERSION=3.0.1
 cmake --build build --target canokey-usbip
 ```
 
@@ -110,6 +112,7 @@ core compatibility patches.
 | `CANOKEY_USBIP=1` | The command is running against virtual USB/IP hardware. |
 | `CANOKEY_CORE_REF` | Requested ref, `external`, or `submodule`. |
 | `CANOKEY_CORE_SHA` | Exact core commit used for the build. |
+| `CANOKEY_FIRMWARE_VERSION` | Firmware release version reported by the virtual admin applet. |
 | `CANOKEY_USBIP_SHA` | Exact harness commit. |
 | `CANOKEY_USB_VID` | Four-digit USB vendor ID selected from the core descriptor. |
 | `CANOKEY_USB_PID` | Four-digit USB product ID selected from the core descriptor. |
