@@ -30,10 +30,10 @@ jobs:
           python3 -m unittest discover -s compat/tests -v
           git diff --check
 
-      - name: Build against the pinned development core
+      - name: Build against the latest mapped release core
         run: |
           ./compat/build \
-            --core-dir "$PWD/canokey-core" \
+            --core-ref 69e562bcb07eedda015aae6064870c8548571e2b \
             --output-dir "$PWD/artifacts/build"
 
       - name: Upload build diagnostics
