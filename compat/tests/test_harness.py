@@ -133,6 +133,7 @@ class HarnessTests(unittest.TestCase):
             output_dir=self.output,
             build_only=False,
             build_dir=None,
+            readiness_requirements=(),
         )
         values.update(changes)
         return Options(**values)
@@ -289,6 +290,100 @@ class HarnessTests(unittest.TestCase):
             status = platform.wait_ready()
         self.assertTrue(status["pcsc"])
         self.assertEqual(status["pcsc_readers"], ["Attached virtual reader"])
+
+    def test_default_readiness_still_requires_hidraw(self):
+        device = self.root / "1-1"
+        device.mkdir()
+        platform = LinuxPlatform(self.output, 0.01)
+        platform.device_path = device
+        with (
+            mock.patch.object(platform, "_interface_classes", return_value={"0b", "03", "ff"}),
+            mock.patch.object(platform, "_hidraw_ready", return_value=False),
+            mock.patch.object(platform, "pcsc_readers", return_value=None),
+        ):
+            with self.assertRaisesRegex(PhaseError, "hidraw: False") as raised:
+                platform.wait_ready()
+        self.assertEqual(raised.exception.phase, "readiness")
+
+    def test_default_readiness_still_allows_unavailable_pcsc_lite(self):
+        device = self.root / "1-1"
+        device.mkdir()
+        platform = LinuxPlatform(self.output, 1)
+        platform.device_path = device
+        with (
+            mock.patch.object(platform, "_interface_classes", return_value={"0b", "03", "ff"}),
+            mock.patch.object(platform, "_hidraw_ready", return_value=True),
+            mock.patch.object(platform, "pcsc_readers", return_value=None),
+        ):
+            status = platform.wait_ready()
+        self.assertFalse(status["pcsc_checked"])
+        self.assertTrue(status["pcsc"])
+
+    def test_explicit_usb_ccid_pcsc_does_not_require_hidraw(self):
+        device = self.root / "1-1"
+        device.mkdir()
+        platform = LinuxPlatform(
+            self.output,
+            1,
+            readiness_requirements=("usb", "ccid", "pcsc"),
+        )
+        platform.device_path = device
+        with (
+            mock.patch.object(platform, "_interface_classes", return_value={"0b"}),
+            mock.patch.object(platform, "_hidraw_ready", return_value=False),
+            mock.patch.object(platform, "pcsc_readers", return_value=["Attached virtual reader"]),
+        ):
+            status = platform.wait_ready()
+        self.assertFalse(status["hid_interface"])
+        self.assertFalse(status["hidraw"])
+        self.assertFalse(status["webusb_interface"])
+        self.assertEqual(status["pcsc_readers"], ["Attached virtual reader"])
+
+    def test_explicit_hid_requires_hidraw(self):
+        device = self.root / "1-1"
+        device.mkdir()
+        platform = LinuxPlatform(self.output, 0.01, readiness_requirements=("hid",))
+        platform.device_path = device
+        with (
+            mock.patch.object(platform, "_interface_classes", return_value={"03"}),
+            mock.patch.object(platform, "_hidraw_ready", return_value=False),
+            mock.patch.object(platform, "pcsc_readers", return_value=None),
+        ):
+            with self.assertRaisesRegex(PhaseError, "hidraw: False"):
+                platform.wait_ready()
+
+    def test_explicit_pcsc_requires_pcsc_lite_and_new_reader(self):
+        device = self.root / "1-1"
+        device.mkdir()
+        for readers in (None, ["Existing reader"]):
+            with self.subTest(readers=readers):
+                platform = LinuxPlatform(self.output, 0.01, readiness_requirements=("pcsc",))
+                platform.device_path = device
+                platform.pcsc_readers_before = {"Existing reader"}
+                with (
+                    mock.patch.object(platform, "_interface_classes", return_value=set()),
+                    mock.patch.object(platform, "_hidraw_ready", return_value=False),
+                    mock.patch.object(platform, "pcsc_readers", return_value=readers),
+                ):
+                    with self.assertRaisesRegex(
+                        PhaseError,
+                        "Unmet readiness requirements: pcsc",
+                    ) as raised:
+                        platform.wait_ready()
+                self.assertEqual(raised.exception.phase, "readiness")
+
+    def test_requirements_are_written_to_state_and_metadata(self):
+        requirements = ("usb", "ccid", "pcsc")
+        runner = FakeHarness(self.options(readiness_requirements=requirements))
+        runner.workspace.mkdir(parents=True)
+        runner.core = CoreSource(runner.workspace / "core", "a" * 40, "external", False)
+        runner.binary = runner.workspace / "canokey-usbip"
+
+        runner.write_state(123, "0")
+
+        state = json.loads(runner.state_path.read_text())
+        self.assertEqual(state["readiness_requirements"], list(requirements))
+        self.assertEqual(runner.base_metadata()["readiness_requirements"], list(requirements))
 
     def test_interface_classes_are_read_below_usb_device(self):
         device = self.root / "1-1"

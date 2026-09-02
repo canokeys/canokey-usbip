@@ -40,6 +40,7 @@ steps.
 ```text
 ./compat/run [--core-ref REF | --core-dir DIR]
              --test-command COMMAND
+             [--require {usb,ccid,hid,webusb,pcsc}]...
              [--storage FILE]
              [--timeout SECONDS]
              [--keep-on-failure]
@@ -68,6 +69,21 @@ preserves the isolated source/build/storage workspace; artifacts are always pres
 `--touch` enables firmware user-presence checks. In that mode a caller can invoke
 `"$CANOKEY_DEVICE_TOUCH"` when its scenario expects a touch. Without `--touch`, the legacy virtual
 device behavior emulates NFC and skips user-presence waits.
+
+Callers that only need selected device layers can repeat `--require` to define readiness explicitly:
+
+```bash
+./compat/run \
+  --core-ref 3.0.1 \
+  --require usb \
+  --require ccid \
+  --require pcsc \
+  --test-command './ckman-smoke.sh'
+```
+
+With one or more `--require` options, only the named layers determine readiness. `hid` requires both
+the HID interface and its hidraw device; `pcsc` requires pcsc-lite and a reader added by the current
+attachment. With no `--require` options, the original full readiness checks remain in effect.
 
 Build without attaching hardware:
 
@@ -113,7 +129,8 @@ same storage is mounted after restart.
 There are no fixed readiness sleeps. The runner reads VID/PID from the selected core and polls for
 that device, CCID class `0b`, HID class `03`, vendor/WebUSB class `ff`, hidraw, and, when pcsc-lite
 is present, the PC/SC reader added by this attachment.
-Timeout errors list which layers were present.
+Timeout errors list which layers were present. All layer states are collected for diagnostics even
+when explicit `--require` options select only some of them.
 
 Every run writes the chosen `--output-dir` (default `artifacts/<UTC timestamp>/`):
 

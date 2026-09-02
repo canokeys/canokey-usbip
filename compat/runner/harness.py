@@ -32,6 +32,14 @@ CORE_URL = "https://github.com/canokeys/canokey-core.git"
 CORE_COMPAT_PATCHES = {
     "5f1e95f8341856d994abb4566995e2379cc0612d": ("core-1.3-legacy-device-sim.patch",),
 }
+DEFAULT_READINESS_STATUS = (
+    "usb",
+    "ccid_interface",
+    "hid_interface",
+    "webusb_interface",
+    "hidraw",
+    "pcsc",
+)
 
 
 class HarnessError(RuntimeError):
@@ -59,6 +67,7 @@ class Options:
     build_only: bool = False
     build_dir: Path | None = None
     touch: bool = False
+    readiness_requirements: tuple[str, ...] = ()
 
 
 @dataclass
@@ -119,11 +128,19 @@ def copy_core_tree(source: Path, destination: Path) -> None:
 
 
 class LinuxPlatform:
-    def __init__(self, output_dir: Path, timeout: int, usb_vid: str = DEFAULT_VID, usb_pid: str = DEFAULT_PID):
+    def __init__(
+        self,
+        output_dir: Path,
+        timeout: int,
+        usb_vid: str = DEFAULT_VID,
+        usb_pid: str = DEFAULT_PID,
+        readiness_requirements: Sequence[str] = (),
+    ):
         self.output_dir = output_dir
         self.timeout = timeout
         self.usb_vid = usb_vid
         self.usb_pid = usb_pid
+        self.readiness_requirements = tuple(readiness_requirements)
         self.device_path: Path | None = None
         self.usb_port: str | None = None
         self.owns_attachment = False
@@ -275,6 +292,7 @@ class LinuxPlatform:
     def wait_ready(self) -> dict[str, Any]:
         deadline = time.monotonic() + self.timeout
         status: dict[str, Any] = {}
+        requirement_status: dict[str, bool] = {}
         while time.monotonic() < deadline:
             classes = self._interface_classes()
             readers = self.pcsc_readers()
@@ -290,14 +308,28 @@ class LinuxPlatform:
                 "pcsc_all_readers": readers or [],
                 "pcsc": readers is None or bool(new_readers),
             }
-            required = ("usb", "ccid_interface", "hid_interface", "webusb_interface", "hidraw", "pcsc")
-            if all(status[name] for name in required):
+            if not self.readiness_requirements:
+                requirement_status = {name: bool(status[name]) for name in DEFAULT_READINESS_STATUS}
+            else:
+                all_requirements = {
+                    "usb": status["usb"],
+                    "ccid": status["ccid_interface"],
+                    "hid": status["hid_interface"] and status["hidraw"],
+                    "webusb": status["webusb_interface"],
+                    "pcsc": status["pcsc_checked"] and bool(status["pcsc_readers"]),
+                }
+                requirement_status = {
+                    name: bool(all_requirements[name]) for name in self.readiness_requirements
+                }
+            if all(requirement_status.values()):
                 return status
             time.sleep(0.25)
+        unmet = ", ".join(name for name, ready in requirement_status.items() if not ready)
         details = "\n".join(f"  {key}: {value}" for key, value in status.items())
         raise PhaseError(
             "readiness",
-            f"Timed out waiting for virtual CanoKey after {self.timeout} seconds\n{details}",
+            f"Timed out waiting for virtual CanoKey after {self.timeout} seconds\n"
+            f"Unmet readiness requirements: {unmet}\n{details}",
         )
 
     def detach(self) -> None:
@@ -345,7 +377,11 @@ class Harness:
         self.core: CoreSource | None = None
         self.binary: Path | None = None
         self.server: subprocess.Popen[bytes] | None = None
-        self.platform = LinuxPlatform(self.output_dir, options.timeout)
+        self.platform = LinuxPlatform(
+            self.output_dir,
+            options.timeout,
+            readiness_requirements=options.readiness_requirements,
+        )
         self.metadata: dict[str, Any] = {}
         self.state_path = self.workspace / "state.json"
         self.lock_file: IO[str] | None = None
@@ -486,6 +522,7 @@ class Harness:
             "output_dir": str(self.output_dir),
             "timeout": self.options.timeout,
             "touch": self.options.touch,
+            "readiness_requirements": list(self.options.readiness_requirements),
             "usb_vid": self.core.usb_vid if self.core else DEFAULT_VID,
             "usb_pid": self.core.usb_pid if self.core else DEFAULT_PID,
         }
@@ -554,6 +591,7 @@ class Harness:
             "storage": str(self.storage),
             "storage_is_explicit": self.explicit_storage,
             "test_command": self.options.test_command,
+            "readiness_requirements": list(self.options.readiness_requirements),
             "caller_workspace": str(self.options.caller_dir),
             "run_workspace": str(self.workspace),
             "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),

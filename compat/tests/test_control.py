@@ -30,10 +30,11 @@ class ReadyResult:
 class FailingPlatform:
     instances = []
 
-    def __init__(self, _output_dir, _timeout):
+    def __init__(self, _output_dir, _timeout, *, readiness_requirements=()):
         self.usb_port = None
         self.owns_attachment = False
         self.detached = False
+        self.readiness_requirements = tuple(readiness_requirements)
         self.__class__.instances.append(self)
 
     def prepare_host(self):
@@ -72,6 +73,7 @@ class ControlTests(unittest.TestCase):
             "output_dir": str(self.output),
             "timeout": 1,
             "touch": False,
+            "readiness_requirements": ["usb", "ccid", "pcsc"],
         }
         FailingPlatform.instances.clear()
 
@@ -90,9 +92,14 @@ class ControlTests(unittest.TestCase):
 
         stop_pid.assert_called_once_with(FakeProcess.pid)
         self.assertTrue(FailingPlatform.instances[0].detached)
+        self.assertEqual(
+            FailingPlatform.instances[0].readiness_requirements,
+            ("usb", "ccid", "pcsc"),
+        )
         saved = json.loads(self.state_path.read_text())
         self.assertIsNone(saved["pid"])
         self.assertIsNone(saved["usb_port"])
+        self.assertEqual(saved["readiness_requirements"], ["usb", "ccid", "pcsc"])
 
 
 if __name__ == "__main__":

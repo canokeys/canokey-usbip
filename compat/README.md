@@ -30,9 +30,11 @@ caller's core checkout and the canokey-core submodule are never patched in place
 ## Lifecycle contract
 
 Only one environment may run on a Linux host at once. A global lock rejects accidental overlap.
-Readiness requires the selected core's USB VID/PID, CCID (`0b`), HID (`03`), vendor/WebUSB (`ff`), and
-hidraw interfaces. If pcsc-lite is installed, the PC/SC reader added by the current attachment is
-also required. A timeout reports the state of each probe rather than relying on a fixed sleep.
+By default, readiness requires the selected core's USB VID/PID, CCID (`0b`), HID (`03`),
+vendor/WebUSB (`ff`), and hidraw interfaces. If pcsc-lite is installed, the PC/SC reader added by
+the current attachment is also required. Callers can repeat `--require` with `usb`, `ccid`, `hid`,
+`webusb`, or `pcsc` to make only those layers determine readiness. All probes are still reported,
+and a timeout reports the state of each probe rather than relying on a fixed sleep.
 
 The Linux host preflight also requires usbfs device nodes at `/dev/bus/usb`; sysfs enumeration alone
 is insufficient for libccid, pcscd, and libusb traffic.

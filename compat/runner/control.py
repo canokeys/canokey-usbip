@@ -51,7 +51,11 @@ def stop_pid(pid: int | None) -> None:
 
 def start(state_path: Path, state: dict) -> tuple[LinuxPlatform, dict]:
     output_dir = Path(state["output_dir"])
-    platform = LinuxPlatform(output_dir, int(state["timeout"]))
+    platform = LinuxPlatform(
+        output_dir,
+        int(state["timeout"]),
+        readiness_requirements=state.get("readiness_requirements", ()),
+    )
     platform.set_usb_identity(
         state.get("usb_vid", DEFAULT_VID),
         state.get("usb_pid", DEFAULT_PID),
@@ -105,7 +109,11 @@ def main() -> int:
     parser.add_argument("command", choices=("start", "stop", "attach", "detach", "restart", "touch", "collect-debug"))
     args = parser.parse_args()
     state_path, state = load_state()
-    platform = LinuxPlatform(Path(state["output_dir"]), int(state["timeout"]))
+    platform = LinuxPlatform(
+        Path(state["output_dir"]),
+        int(state["timeout"]),
+        readiness_requirements=state.get("readiness_requirements", ()),
+    )
     platform.set_usb_identity(
         state.get("usb_vid", DEFAULT_VID),
         state.get("usb_pid", DEFAULT_PID),

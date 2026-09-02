@@ -17,6 +17,14 @@ def parse_args(argv: list[str]) -> Options:
     source.add_argument("--core-ref", help="canokey-core tag, branch, or commit to fetch")
     source.add_argument("--core-dir", type=Path, help="existing canokey-core source tree")
     parser.add_argument("--test-command", help="caller-owned command to execute after readiness")
+    parser.add_argument(
+        "--require",
+        dest="readiness_requirements",
+        action="append",
+        choices=("usb", "ccid", "hid", "webusb", "pcsc"),
+        default=[],
+        help="readiness requirement; repeat to require multiple layers (default: full legacy readiness)",
+    )
     parser.add_argument("--storage", type=Path, help="persistent LittleFS image (preserved after the run)")
     parser.add_argument("--timeout", type=int, default=60, help="readiness and test-command timeout in seconds (default: 60)")
     parser.add_argument("--keep-on-failure", action="store_true", help="preserve the isolated run workspace on failure")
@@ -48,6 +56,7 @@ def parse_args(argv: list[str]) -> Options:
         build_only=args.build_only,
         build_dir=args.build_dir,
         touch=args.touch,
+        readiness_requirements=tuple(dict.fromkeys(args.readiness_requirements)),
     )
 
 
