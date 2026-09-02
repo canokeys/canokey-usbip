@@ -24,11 +24,14 @@ from pathlib import Path
 from typing import IO, Any, Sequence
 
 
-VID = "20a0"
-PID = "42d4"
+DEFAULT_VID = "20a0"
+DEFAULT_PID = "42d4"
 BUS_ID = "1-1"
 USBIP_PORT = 3240
 CORE_URL = "https://github.com/canokeys/canokey-core.git"
+CORE_COMPAT_PATCHES = {
+    "5f1e95f8341856d994abb4566995e2379cc0612d": ("core-1.3-legacy-device-sim.patch",),
+}
 
 
 class HarnessError(RuntimeError):
@@ -64,6 +67,9 @@ class CoreSource:
     sha: str
     ref: str
     dirty: bool
+    patches: tuple[str, ...] = ()
+    usb_vid: str = DEFAULT_VID
+    usb_pid: str = DEFAULT_PID
 
 
 def run_command(
@@ -113,12 +119,15 @@ def copy_core_tree(source: Path, destination: Path) -> None:
 
 
 class LinuxPlatform:
-    def __init__(self, output_dir: Path, timeout: int):
+    def __init__(self, output_dir: Path, timeout: int, usb_vid: str = DEFAULT_VID, usb_pid: str = DEFAULT_PID):
         self.output_dir = output_dir
         self.timeout = timeout
+        self.usb_vid = usb_vid
+        self.usb_pid = usb_pid
         self.device_path: Path | None = None
         self.usb_port: str | None = None
         self.owns_attachment = False
+        self.pcsc_readers_before: set[str] = set()
 
     @staticmethod
     def privileged(argv: Sequence[str]) -> list[str]:
@@ -159,24 +168,29 @@ class LinuxPlatform:
         if shutil.which("systemctl") and shutil.which("pcscd"):
             run_command(self.privileged(["systemctl", "start", "pcscd"]), check=False, timeout=20)
 
-    @staticmethod
-    def matching_usb_devices() -> set[Path]:
+    def set_usb_identity(self, usb_vid: str, usb_pid: str) -> None:
+        self.usb_vid = usb_vid
+        self.usb_pid = usb_pid
+
+    def matching_usb_devices(self) -> set[Path]:
         devices: set[Path] = set()
         root = Path("/sys/bus/usb/devices")
         if not root.exists():
             return devices
         for vendor_file in root.glob("*/idVendor"):
             try:
-                if vendor_file.read_text().strip().lower() != VID:
+                if vendor_file.read_text().strip().lower() != self.usb_vid:
                     continue
                 device = vendor_file.parent
-                if (device / "idProduct").read_text().strip().lower() == PID:
+                if (device / "idProduct").read_text().strip().lower() == self.usb_pid:
                     devices.add(device.resolve())
             except OSError:
                 continue
         return devices
 
     def attach(self, before: set[Path]) -> None:
+        readers_before = self.pcsc_readers()
+        self.pcsc_readers_before = set(readers_before or [])
         command = ["usbip", "--tcp-port", str(USBIP_PORT), "attach", "--remote", "127.0.0.1", "--busid", BUS_ID]
         try:
             run_command(self.privileged(command), timeout=30)
@@ -199,7 +213,8 @@ class LinuxPlatform:
         result = run_command(["usbip", "port"], check=False, timeout=10)
         blocks = re.split(r"(?=^Port\s+\d+:)", result.stdout or "", flags=re.MULTILINE)
         for block in blocks:
-            if "20a0:42d4" in block.lower() or "CanoKey" in block or "1-1" in block:
+            identity = f"{self.usb_vid}:{self.usb_pid}"
+            if identity in block.lower() or "CanoKey" in block or "1-1" in block:
                 match = re.search(r"^Port\s+(\d+):", block, re.MULTILINE)
                 if match:
                     return str(int(match.group(1)))
@@ -263,6 +278,7 @@ class LinuxPlatform:
         while time.monotonic() < deadline:
             classes = self._interface_classes()
             readers = self.pcsc_readers()
+            new_readers = sorted(set(readers or []) - self.pcsc_readers_before)
             status = {
                 "usb": bool(self.device_path and self.device_path.exists()),
                 "ccid_interface": "0b" in classes,
@@ -270,8 +286,9 @@ class LinuxPlatform:
                 "webusb_interface": "ff" in classes,
                 "hidraw": self._hidraw_ready(),
                 "pcsc_checked": readers is not None,
-                "pcsc_readers": readers or [],
-                "pcsc": readers is None or any("canokey" in reader.lower() for reader in readers),
+                "pcsc_readers": new_readers,
+                "pcsc_all_readers": readers or [],
+                "pcsc": readers is None or bool(new_readers),
             }
             required = ("usb", "ccid_interface", "hid_interface", "webusb_interface", "hidraw", "pcsc")
             if all(status[name] for name in required):
@@ -299,7 +316,7 @@ class LinuxPlatform:
     def collect_debug(self) -> None:
         commands = {
             "usbip-port.txt": ["usbip", "port"],
-            "lsusb.txt": ["lsusb", "-v", "-d", f"{VID}:{PID}"],
+            "lsusb.txt": ["lsusb", "-v", "-d", f"{self.usb_vid}:{self.usb_pid}"],
             "kernel.txt": ["uname", "-a"],
         }
         for filename, command in commands.items():
@@ -342,6 +359,40 @@ class Harness:
         except BlockingIOError as exc:
             raise PhaseError("lock", "another canokey-usbip environment is active on this runner") from exc
 
+    def apply_core_compatibility(self, destination: Path, sha: str) -> tuple[str, ...]:
+        patch_names = CORE_COMPAT_PATCHES.get(sha, ())
+        if not patch_names or (destination / "virt-card" / "device-sim.c").exists():
+            return ()
+        patch_dir = self.options.repo_dir / "compat" / "patches"
+        for patch_name in patch_names:
+            try:
+                run_command(
+                    ["git", "apply", "--whitespace=nowarn", str(patch_dir / patch_name)],
+                    cwd=destination,
+                )
+            except HarnessError as exc:
+                raise PhaseError(
+                    "resolve-core",
+                    f"failed to apply canokey-core compatibility patch {patch_name}",
+                ) from exc
+        return patch_names
+
+    @staticmethod
+    def core_usb_identity(destination: Path) -> tuple[str, str]:
+        descriptor = destination / "interfaces" / "USB" / "device" / "usbd_desc.h"
+        try:
+            content = descriptor.read_text()
+        except OSError as exc:
+            raise PhaseError("resolve-core", f"cannot read USB descriptor identity: {descriptor}") from exc
+
+        values: dict[str, str] = {}
+        for name in ("USBD_VID", "USBD_PID"):
+            match = re.search(rf"^\s*#\s*define\s+{name}\s+(0[xX][0-9a-fA-F]+|[0-9]+)\b", content, re.MULTILINE)
+            if not match:
+                raise PhaseError("resolve-core", f"cannot resolve {name} from {descriptor}")
+            values[name] = f"{int(match.group(1), 0):04x}"
+        return values["USBD_VID"], values["USBD_PID"]
+
     def resolve_core(self) -> CoreSource:
         destination = self.workspace / "core"
         if self.options.core_ref:
@@ -354,7 +405,10 @@ class Harness:
                 raise PhaseError("resolve-core", f"invalid or unreachable canokey-core ref: {self.options.core_ref}") from exc
             run_command(["git", "-C", str(destination), "checkout", "--quiet", "--detach", "FETCH_HEAD"])
             run_command(["git", "-C", str(destination), "submodule", "update", "--init", "--recursive", "--depth", "1"])
-            return CoreSource(destination, git_value(destination, "rev-parse", "HEAD"), self.options.core_ref, False)
+            sha = git_value(destination, "rev-parse", "HEAD")
+            patches = self.apply_core_compatibility(destination, sha)
+            usb_vid, usb_pid = self.core_usb_identity(destination)
+            return CoreSource(destination, sha, self.options.core_ref, False, patches, usb_vid, usb_pid)
 
         source = self.options.core_dir or self.options.repo_dir / "canokey-core"
         if not (source / "CMakeLists.txt").exists():
@@ -368,7 +422,9 @@ class Harness:
         if not (destination / "canokey-crypto" / "CMakeLists.txt").exists():
             raise PhaseError("resolve-core", "canokey-core submodules are missing; run git submodule update --init --recursive")
         ref = "external" if self.options.core_dir else "submodule"
-        return CoreSource(destination, sha, ref, dirty)
+        patches = self.apply_core_compatibility(destination, sha)
+        usb_vid, usb_pid = self.core_usb_identity(destination)
+        return CoreSource(destination, sha, ref, dirty, patches, usb_vid, usb_pid)
 
     def build(self) -> Path:
         assert self.core
@@ -430,6 +486,8 @@ class Harness:
             "output_dir": str(self.output_dir),
             "timeout": self.options.timeout,
             "touch": self.options.touch,
+            "usb_vid": self.core.usb_vid if self.core else DEFAULT_VID,
+            "usb_pid": self.core.usb_pid if self.core else DEFAULT_PID,
         }
         self.state_path.write_text(json.dumps(state, indent=2) + "\n")
 
@@ -444,6 +502,8 @@ class Harness:
             "CANOKEY_STORAGE": str(self.storage),
             "CANOKEY_TEST_OUTPUT": str(self.output_dir),
             "CANOKEY_USBIP_STATE": str(self.state_path),
+            "CANOKEY_USB_VID": self.core.usb_vid,
+            "CANOKEY_USB_PID": self.core.usb_pid,
             "CANOKEY_DEVICE_RESTART": str(self.options.repo_dir / "compat/scripts/restart-device.sh"),
             "CANOKEY_DEVICE_TOUCH": str(self.options.repo_dir / "compat/scripts/touch-device.sh"),
         })
@@ -484,6 +544,9 @@ class Harness:
             "canokey_core_sha": "unknown",
             "canokey_core_ref": requested_ref,
             "canokey_core_dirty": None,
+            "canokey_core_compat_patches": [],
+            "usb_vid": DEFAULT_VID,
+            "usb_pid": DEFAULT_PID,
             "kernel": platform.platform(),
             "usbip_version": tool_version(["usbip", "version"]),
             "cmake_version": tool_version(["cmake", "--version"]),
@@ -504,6 +567,9 @@ class Harness:
             "canokey_core_sha": self.core.sha,
             "canokey_core_ref": self.core.ref,
             "canokey_core_dirty": self.core.dirty,
+            "canokey_core_compat_patches": list(self.core.patches),
+            "usb_vid": self.core.usb_vid,
+            "usb_pid": self.core.usb_pid,
         })
         return metadata
 
@@ -562,6 +628,7 @@ class Harness:
             self.acquire_lock()
             phase = "resolve-core"
             self.core = self.resolve_core()
+            self.platform.set_usb_identity(self.core.usb_vid, self.core.usb_pid)
             self.metadata = self.initial_metadata()
             self.save_metadata()
             phase = "build"

@@ -36,14 +36,27 @@ def list_firmwares(config_dir: Path, profile: str | None) -> list[dict]:
     return selected
 
 
+def list_release_mappings(config_dir: Path) -> list[dict]:
+    return load_json_yaml(config_dir / "firmwares.yaml")["release_mappings"]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Emit canokey-core firmware matrix JSON")
-    parser.add_argument("--profile", help="profile from compat/config/profiles.yaml")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--profile", help="profile from compat/config/profiles.yaml")
+    selection.add_argument(
+        "--release-map", action="store_true",
+        help="emit firmware version to core commit mappings",
+    )
     parser.add_argument("--compact", action="store_true", help="emit single-line JSON for GitHub outputs")
     args = parser.parse_args()
     config_dir = Path(__file__).resolve().parents[1] / "config"
     try:
-        entries = list_firmwares(config_dir, args.profile)
+        entries = (
+            list_release_mappings(config_dir)
+            if args.release_map
+            else list_firmwares(config_dir, args.profile)
+        )
     except ValueError as exc:
         parser.error(str(exc))
     print(json.dumps(entries, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2))

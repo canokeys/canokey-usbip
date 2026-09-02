@@ -39,6 +39,9 @@ class FailingPlatform:
     def prepare_host(self):
         pass
 
+    def set_usb_identity(self, _usb_vid, _usb_pid):
+        pass
+
     def matching_usb_devices(self):
         return set()
 

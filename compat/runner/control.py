@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from harness import BUS_ID, USBIP_PORT, LinuxPlatform, run_command
+from harness import BUS_ID, DEFAULT_PID, DEFAULT_VID, USBIP_PORT, LinuxPlatform, run_command
 
 
 def load_state() -> tuple[Path, dict]:
@@ -52,6 +52,10 @@ def stop_pid(pid: int | None) -> None:
 def start(state_path: Path, state: dict) -> tuple[LinuxPlatform, dict]:
     output_dir = Path(state["output_dir"])
     platform = LinuxPlatform(output_dir, int(state["timeout"]))
+    platform.set_usb_identity(
+        state.get("usb_vid", DEFAULT_VID),
+        state.get("usb_pid", DEFAULT_PID),
+    )
     platform.prepare_host()
     before = platform.matching_usb_devices()
     log = (output_dir / "usbip.log").open("ab", buffering=0)
@@ -102,6 +106,10 @@ def main() -> int:
     args = parser.parse_args()
     state_path, state = load_state()
     platform = LinuxPlatform(Path(state["output_dir"]), int(state["timeout"]))
+    platform.set_usb_identity(
+        state.get("usb_vid", DEFAULT_VID),
+        state.get("usb_pid", DEFAULT_PID),
+    )
     platform.usb_port = state.get("usb_port")
     platform.owns_attachment = platform.usb_port is not None
 

@@ -95,5 +95,7 @@ if (ENABLE_TESTS)
         target_compile_options(canokey-usbip PRIVATE "--coverage" "-fsanitize=address" "-fsanitize=undefined")
         target_link_options(canokey-usbip PRIVATE "--coverage" "-fsanitize=address" "-fsanitize=undefined")
 endif ()
-target_compile_definitions(canokey-usbip PRIVATE HW_VARIANT_NAME="CanoKey USB/IP")
+target_compile_definitions(canokey-usbip PRIVATE
+        HW_VARIANT_NAME="CanoKey USB/IP"
+        VIRT_VENDOR)
 target_link_libraries(canokey-usbip canokey-core)

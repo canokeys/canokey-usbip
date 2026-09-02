@@ -1,65 +1,107 @@
 {
-  "schema": 1,
+  "schema": 2,
   "repository": "https://github.com/canokeys/canokey-core.git",
+  "release_mappings": [
+    {
+      "id": "1.3",
+      "core_commit": "5f1e95f8341856d994abb4566995e2379cc0612d"
+    },
+    {
+      "id": "1.5.2",
+      "core_commit": "b16e8c517ed72fe26e5101b450a99df2b3526aa1",
+      "core_tag": "1.5.2"
+    },
+    {
+      "id": "1.6.1",
+      "core_commit": "e022053a87e10d5d1e655f9cc59ecb0207160e09",
+      "core_tag": "1.6.0"
+    },
+    {
+      "id": "1.6.2",
+      "core_commit": "0ac63dfb52805c77af5b19e51b9c5ae19a741c92",
+      "core_tag": "1.6.2"
+    },
+    {
+      "id": "2.0.0",
+      "core_commit": "e90f851fe220082a9864136862d3253ab57c96f0",
+      "core_tag": "2.0.0"
+    },
+    {
+      "id": "2.0.1",
+      "core_commit": "be6325b8c4e6d40e86b2943f65083ed6b71f8259",
+      "core_tag": "2.0.1"
+    },
+    {
+      "id": "3.0.0",
+      "core_commit": "7cb33508a69ce4d281a053e1e53e6d006469076b",
+      "core_tag": "3.0.0"
+    },
+    {
+      "id": "3.0.1",
+      "core_commit": "69e562bcb07eedda015aae6064870c8548571e2b"
+    }
+  ],
   "aliases": {
-    "oldest-supported": "1.5.2",
-    "latest": "3.0.3",
+    "oldest-supported": "1.3",
+    "latest": "3.0.1",
     "head": "head"
   },
   "firmwares": [
     {
+      "id": "1.3",
+      "ref": "5f1e95f8341856d994abb4566995e2379cc0612d",
+      "verified_sha": "5f1e95f8341856d994abb4566995e2379cc0612d",
+      "adapter": "core-1.3-legacy-device-sim.patch",
+      "usb_vid": "20a0",
+      "usb_pid": "42d4",
+      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
       "id": "1.5.2",
-      "ref": "1.5.2",
+      "ref": "b16e8c517ed72fe26e5101b450a99df2b3526aa1",
       "verified_sha": "b16e8c517ed72fe26e5101b450a99df2b3526aa1",
       "adapter": "device-loop-with-argument",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
     {
-      "id": "1.6.0",
-      "ref": "1.6.0",
+      "id": "1.6.1",
+      "ref": "e022053a87e10d5d1e655f9cc59ecb0207160e09",
       "verified_sha": "e022053a87e10d5d1e655f9cc59ecb0207160e09",
       "adapter": "device-loop-with-argument",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
     {
       "id": "1.6.2",
-      "ref": "1.6.2",
+      "ref": "0ac63dfb52805c77af5b19e51b9c5ae19a741c92",
       "verified_sha": "0ac63dfb52805c77af5b19e51b9c5ae19a741c92",
       "adapter": "device-loop-with-argument",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
     {
       "id": "2.0.0",
-      "ref": "2.0.0",
+      "ref": "e90f851fe220082a9864136862d3253ab57c96f0",
       "verified_sha": "e90f851fe220082a9864136862d3253ab57c96f0",
       "adapter": "device-loop-with-argument",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
     {
       "id": "2.0.1",
-      "ref": "2.0.1",
-      "verified_sha": "4442ac5ca777e8bfca39d4bf4996e2b0c441ffd6",
+      "ref": "be6325b8c4e6d40e86b2943f65083ed6b71f8259",
+      "verified_sha": "be6325b8c4e6d40e86b2943f65083ed6b71f8259",
       "adapter": "device-loop-with-argument",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
     {
       "id": "3.0.0",
-      "ref": "3.0.0",
-      "verified_sha": "e33c3d55d390b56a417d5dbf0c568b28aae8cad6",
+      "ref": "7cb33508a69ce4d281a053e1e53e6d006469076b",
+      "verified_sha": "7cb33508a69ce4d281a053e1e53e6d006469076b",
       "adapter": "device-loop-no-args-usbd-init-done",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
     {
-      "id": "3.0.2",
-      "ref": "3.0.2",
-      "verified_sha": "0a218f413d72ee39bf4067ea363b1f63300ed4ad",
-      "adapter": "device-loop-no-args-usbd-init-done",
-      "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
-    },
-    {
-      "id": "3.0.3",
-      "ref": "3.0.3",
-      "verified_sha": "7644370f0c16d5b5e0d2f503e6c47bd39aaa0e2f",
+      "id": "3.0.1",
+      "ref": "69e562bcb07eedda015aae6064870c8548571e2b",
+      "verified_sha": "69e562bcb07eedda015aae6064870c8548571e2b",
       "adapter": "device-loop-no-args-usbd-init-done",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },

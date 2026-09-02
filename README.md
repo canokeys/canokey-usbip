@@ -19,7 +19,7 @@ readiness, logging, timeout, and cleanup. It is not a CanoKey integration-test m
 
 ```bash
 ./compat/run \
-  --core-ref 3.0.3 \
+  --core-ref 3.0.1 \
   --test-command 'python3 -c "print(\"test\")"'
 ```
 
@@ -27,8 +27,8 @@ An infrastructure smoke command that checks both USB and PC/SC is:
 
 ```bash
 ./compat/run \
-  --core-ref 3.0.3 \
-  --test-command 'lsusb -d 20a0:42d4 && pcsc_scan -r | grep -i canokey'
+  --core-ref 3.0.1 \
+  --test-command 'lsusb -d "$CANOKEY_USB_VID:$CANOKEY_USB_PID" && test -n "$CANOKEY_PCSC_READER"'
 ```
 
 The command must run on Linux with USB/IP host support. `compat/run` performs `modprobe`, start,
@@ -56,8 +56,8 @@ Each run gets `/tmp/canokey-usbip/<run-id>/device.lfs` and a fresh device by def
 `--storage` path is never deleted, enabling provisioning and upgrade tests:
 
 ```bash
-./compat/run --core-ref 3.0.2 --storage "$PWD/device.lfs" --test-command ./provision.sh
-./compat/run --core-ref 3.0.3 --storage "$PWD/device.lfs" --test-command ./verify.sh
+./compat/run --core-ref 3.0.0 --storage "$PWD/device.lfs" --test-command ./provision.sh
+./compat/run --core-ref 3.0.1 --storage "$PWD/device.lfs" --test-command ./verify.sh
 ```
 
 `--timeout` applies independently to readiness and the caller command; command timeout returns
@@ -82,6 +82,9 @@ cmake -S . -B build -DCANOKEY_CORE_DIR=/workspace/canokey-core
 cmake --build build --target canokey-usbip
 ```
 
+Use `compat/run` or `compat/build` for firmware 1.3; direct CMake does not apply historical
+core compatibility patches.
+
 ## Public test environment
 
 `--test-command` runs from the directory where `compat/run` was invoked with these stable variables:
@@ -92,6 +95,8 @@ cmake --build build --target canokey-usbip
 | `CANOKEY_CORE_REF` | Requested ref, `external`, or `submodule`. |
 | `CANOKEY_CORE_SHA` | Exact core commit used for the build. |
 | `CANOKEY_USBIP_SHA` | Exact harness commit. |
+| `CANOKEY_USB_VID` | Four-digit USB vendor ID selected from the core descriptor. |
+| `CANOKEY_USB_PID` | Four-digit USB product ID selected from the core descriptor. |
 | `CANOKEY_STORAGE` | LittleFS device image in use. |
 | `CANOKEY_TEST_OUTPUT` | Artifact directory for caller results. |
 | `CANOKEY_PCSC_READER` | PC/SC reader name, when detected. |
@@ -105,8 +110,9 @@ same storage is mounted after restart.
 
 ## Readiness and artifacts
 
-There are no fixed readiness sleeps. The runner polls for VID/PID `20a0:42d4`, CCID class `0b`,
-HID class `03`, vendor/WebUSB class `ff`, hidraw, and, when pcsc-lite is present, a CanoKey reader.
+There are no fixed readiness sleeps. The runner reads VID/PID from the selected core and polls for
+that device, CCID class `0b`, HID class `03`, vendor/WebUSB class `ff`, hidraw, and, when pcsc-lite
+is present, the PC/SC reader added by this attachment.
 Timeout errors list which layers were present.
 
 Every run writes the chosen `--output-dir` (default `artifacts/<UTC timestamp>/`):
@@ -137,12 +143,19 @@ management.
 ```bash
 ./compat/list-firmwares --profile smoke
 ./compat/list-firmwares --profile nightly --compact
+./compat/list-firmwares --release-map
 ```
 
-`smoke` currently expands to oldest supported release, latest release, and `master`. `nightly`
-expands to every verified release plus `master`. The compact form can be written directly to a
-GitHub matrix output. See `compat/config/firmwares.yaml` for the verified SHA and build adapter of
-each ref.
+`smoke` currently expands to oldest supported, latest release, and `master`. `nightly` expands to
+every verified release plus `master`. The compact form can be written directly to a GitHub matrix
+output. See `compat/config/firmwares.yaml` for the verified SHA and build adapter of each ref.
+
+`--release-map` emits the maintained mapping from shipped firmware version to the exact
+`canokey-core` commit recorded by that firmware. It is deliberately separate from build support:
+firmware and core tag version numbers must not be assumed to match. For example, firmware `1.6.1`
+maps to core tag `1.6.0`. The `1.3` commit predates the harness platform source interface
+(`virt-card/device-sim.c`), so the runner applies the repository-owned
+`core-1.3-legacy-device-sim.patch` only to its isolated core snapshot.
 
 ## GitHub Actions
 
@@ -162,8 +175,8 @@ jobs:
       fail-fast: false
       matrix:
         firmware:
-          - { id: oldest, ref: "1.5.2" }
-          - { id: latest, ref: "3.0.3" }
+          - { id: oldest, ref: "5f1e95f8341856d994abb4566995e2379cc0612d" }
+          - { id: latest, ref: "69e562bcb07eedda015aae6064870c8548571e2b" }
           - { id: head, ref: "master" }
     uses: canokeys/canokey-usbip/.github/workflows/usbip-integration.yml@master
     with:

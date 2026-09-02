@@ -13,7 +13,14 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runner"))
 
-from harness import CoreSource, Harness, LinuxPlatform, Options, PhaseError  # noqa: E402
+from harness import (  # noqa: E402
+    CORE_COMPAT_PATCHES,
+    CoreSource,
+    Harness,
+    LinuxPlatform,
+    Options,
+    PhaseError,
+)
 
 
 class FakePlatform:
@@ -26,6 +33,9 @@ class FakePlatform:
         self.collected = False
         self.fail_detach = False
         self.attach_error: PhaseError | None = None
+
+    def set_usb_identity(self, _usb_vid, _usb_pid):
+        pass
 
     def prepare_host(self):
         pass
@@ -48,6 +58,7 @@ class FakePlatform:
             "pcsc_checked": False,
             "pcsc": True,
             "pcsc_readers": [],
+            "pcsc_all_readers": [],
         }
 
     def collect_debug(self):
@@ -231,6 +242,53 @@ class HarnessTests(unittest.TestCase):
         )
         runner = FakeHarness(self.options(test_command=command))
         self.assertEqual(runner.execute(), 0)
+
+    def test_legacy_patch_is_applied_only_to_core_snapshot(self):
+        sha = next(iter(CORE_COMPAT_PATCHES))
+        source = self.root / "source-core" / "virt-card"
+        source.mkdir(parents=True)
+        snapshot = self.root / "snapshot"
+        snapshot.mkdir()
+        (snapshot / "virt-card").mkdir()
+        runner = Harness(self.options())
+
+        patches = runner.apply_core_compatibility(snapshot, sha)
+
+        self.assertEqual(patches, ("core-1.3-legacy-device-sim.patch",))
+        self.assertTrue((snapshot / "virt-card" / "device-sim.c").is_file())
+        self.assertFalse((source / "device-sim.c").exists())
+
+    def test_legacy_patch_is_not_applied_to_unknown_core(self):
+        snapshot = self.root / "snapshot"
+        (snapshot / "virt-card").mkdir(parents=True)
+        runner = Harness(self.options())
+        self.assertEqual(runner.apply_core_compatibility(snapshot, "f" * 40), ())
+        self.assertFalse((snapshot / "virt-card" / "device-sim.c").exists())
+
+    def test_core_usb_identity_supports_non_default_vid_pid(self):
+        core = self.root / "core" / "interfaces" / "USB" / "device"
+        core.mkdir(parents=True)
+        (core / "usbd_desc.h").write_text("#define USBD_VID 0x1677\n#define USBD_PID 0x0025\n")
+        self.assertEqual(Harness.core_usb_identity(self.root / "core"), ("1677", "0025"))
+
+    def test_pcsc_readiness_uses_reader_added_by_attachment(self):
+        device = self.root / "1-1"
+        device.mkdir()
+        platform = LinuxPlatform(self.output, 1, "1677", "0025")
+        platform.device_path = device
+        platform.pcsc_readers_before = {"Existing reader"}
+        with (
+            mock.patch.object(platform, "_interface_classes", return_value={"0b", "03", "ff"}),
+            mock.patch.object(platform, "_hidraw_ready", return_value=True),
+            mock.patch.object(
+                platform,
+                "pcsc_readers",
+                return_value=["Existing reader", "Attached virtual reader"],
+            ),
+        ):
+            status = platform.wait_ready()
+        self.assertTrue(status["pcsc"])
+        self.assertEqual(status["pcsc_readers"], ["Attached virtual reader"])
 
     def test_interface_classes_are_read_below_usb_device(self):
         device = self.root / "1-1"

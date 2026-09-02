@@ -12,8 +12,10 @@ test suites. Those remain in the caller repository.
 - `run`: complete build/device/test lifecycle.
 - `build`: isolated build only; prints the resulting executable path.
 - `environment`: checks Linux host prerequisites.
-- `list-firmwares`: emits profile or full catalog JSON without third-party Python packages.
-- `config/firmwares.yaml`: refs proven to compile with this harness and USB-level metadata.
+- `list-firmwares`: emits profiles, the supported catalog, or the firmware/core release map without
+  third-party Python packages.
+- `config/firmwares.yaml`: historical firmware/core mappings plus build-verified refs and USB-level
+  metadata used by profiles.
 - `config/profiles.yaml`: smoke/nightly firmware selection.
 - `scripts/`: lifecycle controls used by a running caller test command.
 - `tests/`: hardware-independent runner tests.
@@ -21,12 +23,16 @@ test suites. Those remain in the caller repository.
 The `.yaml` configuration files use JSON syntax, which is a strict YAML subset. This keeps the
 matrix helper dependency-free.
 
+Firmware 1.3 uses a build-only compatibility patch from `patches/`. It is allowlisted by exact core
+SHA and applied after the core has been cloned or copied into the isolated run workspace. The
+caller's core checkout and the canokey-core submodule are never patched in place.
+
 ## Lifecycle contract
 
 Only one environment may run on a Linux host at once. A global lock rejects accidental overlap.
-Readiness requires the `20a0:42d4` USB device, CCID (`0b`), HID (`03`), vendor/WebUSB (`ff`), and
-hidraw interfaces. If pcsc-lite is installed, a CanoKey PC/SC reader is also required. A timeout
-reports the state of each probe rather than relying on a fixed sleep.
+Readiness requires the selected core's USB VID/PID, CCID (`0b`), HID (`03`), vendor/WebUSB (`ff`), and
+hidraw interfaces. If pcsc-lite is installed, the PC/SC reader added by the current attachment is
+also required. A timeout reports the state of each probe rather than relying on a fixed sleep.
 
 The Linux host preflight also requires usbfs device nodes at `/dev/bus/usb`; sysfs enumeration alone
 is insufficient for libccid, pcscd, and libusb traffic.
