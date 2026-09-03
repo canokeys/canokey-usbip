@@ -7,7 +7,7 @@ on:
         description: canokey-core tag, branch, or commit (ignored when core-dir is set)
         required: false
         type: string
-        default: "3.0.1"
+        default: "3.1.0"
       core-dir:
         description: canokey-core directory relative to the caller checkout
         required: false

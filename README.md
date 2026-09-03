@@ -19,7 +19,7 @@ readiness, logging, timeout, and cleanup. It is not a CanoKey integration-test m
 
 ```bash
 ./compat/run \
-  --core-ref 3.0.1 \
+  --core-ref 3.1.0 \
   --test-command 'python3 -c "print(\"test\")"'
 ```
 
@@ -27,7 +27,7 @@ An infrastructure smoke command that checks both USB and PC/SC is:
 
 ```bash
 ./compat/run \
-  --core-ref 3.0.1 \
+  --core-ref 3.1.0 \
   --test-command 'lsusb -d "$CANOKEY_USB_VID:$CANOKEY_USB_PID" && test -n "$CANOKEY_PCSC_READER"'
 ```
 
@@ -74,7 +74,7 @@ Callers that only need selected device layers can repeat `--require` to define r
 
 ```bash
 ./compat/run \
-  --core-ref 3.0.1 \
+  --core-ref 3.1.0 \
   --require usb \
   --require ccid \
   --require pcsc \
@@ -96,7 +96,7 @@ Direct CMake also supports external core trees without changing the submodule po
 ```bash
 cmake -S . -B build \
   -DCANOKEY_CORE_DIR=/workspace/canokey-core \
-  -DCANOKEY_FIRMWARE_VERSION=3.0.1
+  -DCANOKEY_FIRMWARE_VERSION=3.1.0
 cmake --build build --target canokey-usbip
 ```
 
@@ -196,7 +196,7 @@ jobs:
       matrix:
         firmware:
           - { id: oldest, ref: "5f1e95f8341856d994abb4566995e2379cc0612d" }
-          - { id: latest, ref: "69e562bcb07eedda015aae6064870c8548571e2b" }
+          - { id: latest, ref: "e1ee3710d97f2d6350d67fa0937a7ee2974a3e9c" }
           - { id: head, ref: "master" }
     uses: canokeys/canokey-usbip/.github/workflows/usbip-integration.yml@master
     with:
