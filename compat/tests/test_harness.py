@@ -300,6 +300,8 @@ class HarnessTests(unittest.TestCase):
         source.mkdir(parents=True)
         snapshot = self.root / "snapshot" / "virt-card"
         snapshot.mkdir(parents=True)
+        existing_device_sim = "/* present in 3.1.0 */\n"
+        (snapshot / "device-sim.c").write_text(existing_device_sim)
         original = (
             "int card_fabrication_procedure(const char *lfs_root) {\n"
             "  if (card_fs_init(lfs_root)) return 1;\n"
@@ -335,6 +337,7 @@ class HarnessTests(unittest.TestCase):
         patched = (snapshot / "fabrication.c").read_text()
         self.assertNotIn("ADMIN_INS_FACTORY_RESET", patched)
         self.assertIn("applets_install() initialized every applet", patched)
+        self.assertEqual((snapshot / "device-sim.c").read_text(), existing_device_sim)
         self.assertIn("ADMIN_INS_FACTORY_RESET", (source / "fabrication.c").read_text())
 
     def test_legacy_patch_is_not_applied_to_unknown_core(self):
