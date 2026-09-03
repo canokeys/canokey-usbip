@@ -31,7 +31,7 @@ USBIP_PORT = 3240
 CORE_URL = "https://github.com/canokeys/canokey-core.git"
 CORE_COMPAT_PATCHES = {
     "5f1e95f8341856d994abb4566995e2379cc0612d": ("core-1.3-legacy-device-sim.patch",),
-    "e1ee3710d97f2d6350d67fa0937a7ee2974a3e9c": ("core-3.1.0-fabrication.patch",),
+    "49d49f61ed7c35506b84672bbfe87c3cf236a5d5": ("core-3.1.0-fabrication.patch",),
 }
 CORE_COMPAT_PATCH_SKIP_IF_PRESENT = {
     "core-1.3-legacy-device-sim.patch": Path("virt-card/device-sim.c"),
