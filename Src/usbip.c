@@ -300,7 +300,7 @@ void usbip_payload_rx(int client_fd, uint32_t ep) {
   }
 }
 
-void usbip_tx_submit_zero(int client_fd, uint8_t ep) {
+int usbip_tx_submit_zero(int client_fd, uint8_t ep) {
   // mainly used for BULK OUT, and INTR OUT
   // printf("<- RET_SUBMIT_ZERO: seq %d\n", ntohl(endpoints[ep].submit.seq_num));
 
@@ -322,11 +322,12 @@ void usbip_tx_submit_zero(int client_fd, uint8_t ep) {
   bzero(body.setup, 8);
 
   uint8_t command[4] = {0, 0, 0, 3};
-  write_exact(client_fd, command, sizeof(command));
-  write_exact(client_fd, (uint8_t *)&body, sizeof(body));
+  if (write_exact(client_fd, command, sizeof(command)) < 0) return -1;
+  if (write_exact(client_fd, (uint8_t *)&body, sizeof(body)) < 0) return -1;
+  return 0;
 }
 
-void usbip_tx_submit(int client_fd, uint8_t ep) {
+int usbip_tx_submit(int client_fd, uint8_t ep) {
   struct CmdSubmitBody *submit;
   if(endpoints[ep].type == USBD_EP_TYPE_INTR) {
     submit = &endpoints[ep].intr_in;
@@ -355,15 +356,17 @@ void usbip_tx_submit(int client_fd, uint8_t ep) {
   //     ntohl(submit->seq_num), actual_length);
 
   uint8_t command[4] = {0, 0, 0, 3};
-  write_exact(client_fd, command, sizeof(command));
-  write_exact(client_fd, (uint8_t *)&body, sizeof(body));
+  if (write_exact(client_fd, command, sizeof(command)) < 0) return -1;
+  if (write_exact(client_fd, (uint8_t *)&body, sizeof(body)) < 0) return -1;
   // data
   if(endpoints[ep].type == USBD_EP_TYPE_INTR) {
-    write_exact(client_fd, endpoints[ep].tx_buffer + endpoints[ep].tx_pos,
-        actual_length);
+    if (write_exact(client_fd,
+        endpoints[ep].tx_buffer + endpoints[ep].tx_pos,
+        actual_length) < 0) return -1;
     endpoints[ep].tx_pos += actual_length;
   } else {
-    write_exact(client_fd, endpoints[ep].tx_buffer, endpoints[ep].tx_size);
+    if (write_exact(client_fd,
+        endpoints[ep].tx_buffer, endpoints[ep].tx_size) < 0) return -1;
     endpoints[ep].tx_pos = endpoints[ep].tx_size;
   }
 
@@ -374,13 +377,16 @@ void usbip_tx_submit(int client_fd, uint8_t ep) {
     // for INTR IN only
     endpoint_mark_ready(ep, 0);
   }
+  return 0;
 }
 
-void usbip_tx_unlink(int client_fd, struct RetUnlinkBody *ret) {
+int usbip_tx_unlink(int client_fd, struct RetUnlinkBody *ret) {
   printf("<- RET_UNLINK\n");
   uint8_t command[4] = {0, 0, 0, 4};
-  write_exact(client_fd, command, sizeof(command));
-  write_exact(client_fd, (uint8_t *)ret, sizeof(struct RetUnlinkBody));
+  if (write_exact(client_fd, command, sizeof(command)) < 0) return -1;
+  if (write_exact(client_fd,
+      (uint8_t *)ret, sizeof(struct RetUnlinkBody)) < 0) return -1;
+  return 0;
 }
 
 int usbip_devlist(int client_fd) {
@@ -611,7 +617,7 @@ int usbip_submit(int client_fd) {
       usbip_payload_rx(client_fd, ep);
       compat_device_loop();
       printf("<-CTL\tIN\n");
-      usbip_tx_submit(client_fd, ep);
+      if (usbip_tx_submit(client_fd, ep) < 0) return -1;
       USBD_LL_DataInStage(&usb_device, ep, NULL);
     } else {
       // control in:
@@ -621,7 +627,7 @@ int usbip_submit(int client_fd) {
       USBD_LL_SetupStage(&usb_device, body.setup);
       printf("<-CTL\tIN\n");
       compat_device_loop();
-      usbip_tx_submit(client_fd, ep);
+      if (usbip_tx_submit(client_fd, ep) < 0) return -1;
       USBD_LL_DataInStage(&usb_device, ep, NULL);
       // FIXME: should be here according to usb protocol?
       //        not clear for usbip protocol
@@ -634,13 +640,13 @@ int usbip_submit(int client_fd) {
       // bulk out
       // printf("->BULK OUT ep %d seq %d\n", ep, seq_num);
       usbip_payload_rx(client_fd, ep);
-      usbip_tx_submit_zero(client_fd, ep);
+      if (usbip_tx_submit_zero(client_fd, ep) < 0) return -1;
       // printf("<-BULK OUT\n");
     } else {
       // bulk in
       // printf("->BULK IN ep %d seq %d\n", ep, seq_num);
       compat_device_loop();
-      usbip_tx_submit(client_fd, ep);
+      if (usbip_tx_submit(client_fd, ep) < 0) return -1;
       usbip_complete_bulk_in(ep);
       // printf("<-BULK IN\n");
     }
@@ -651,9 +657,9 @@ int usbip_submit(int client_fd) {
       // printf("->INTR OUT ep %d seq %d\n", ep, seq_num);
       usbip_payload_rx(client_fd, ep);
       compat_device_loop();
-      usbip_tx_submit_zero(client_fd, ep); // OUT ZERO-LENGTH ACK
+      if (usbip_tx_submit_zero(client_fd, ep) < 0) return -1; // OUT ZERO-LENGTH ACK
       if (endpoint_ready(ep)) // async IN reply
-        usbip_tx_submit(client_fd, ep);
+        if (usbip_tx_submit(client_fd, ep) < 0) return -1;
       // printf("<-INTR OUT\n");
     } else {
       // intr in
@@ -663,7 +669,7 @@ int usbip_submit(int client_fd) {
         USBD_LL_DataInStage(&usb_device, ep, NULL);
         endpoint_mark_ready(ep, 1);
       } else {
-        usbip_tx_submit(client_fd, ep);
+        if (usbip_tx_submit(client_fd, ep) < 0) return -1;
       }
       // printf("<-INTR IN\n");
     }
@@ -682,6 +688,7 @@ int usbip_unlink(int client_fd) {
 
   // full policy doc: linux/latest/source/drivers/usb/usbip/stub_rx.c#L251
   uint32_t status = 0;
+  uint8_t unlinked_endpoints[EP_NUM] = {0};
   for (int ep = 0; ep != EP_NUM; ++ep) {
     // single threaded, hence only handle INTR IN
     if (endpoints[ep].intr_in.seq_num == body.seq_num_submit) {
@@ -690,7 +697,7 @@ int usbip_unlink(int client_fd) {
       status = htonl(-ECONNRESET);
       // note that in original policy, this RetUnlink is done by callback func `stub_complete`,
       // for ease of handling(we do not have callback), we implement callback here
-      endpoint_mark_ready(ep, 0);
+      unlinked_endpoints[ep] = 1;
     }
   }
 
@@ -702,7 +709,10 @@ int usbip_unlink(int client_fd) {
   ret.status = status;
   bzero(ret.padding, sizeof(ret.padding));
 
-  usbip_tx_unlink(client_fd, &ret);
+  if (usbip_tx_unlink(client_fd, &ret) < 0) return -1;
+  for (int ep = 0; ep != EP_NUM; ++ep) {
+    if (unlinked_endpoints[ep]) endpoint_mark_ready(ep, 0);
+  }
   return 0;
 }
 
@@ -742,6 +752,9 @@ int main(int argc, char **argv) {
 
   // emulate touch by SIGINT
   signal(SIGINT, sigint_handler);
+  // A client may disconnect while a DEVLIST response is still being written.
+  // Let write_exact handle EPIPE instead of terminating the server process.
+  signal(SIGPIPE, SIG_IGN);
 
   // setup usbip server
   char *listen_addr = "127.0.0.1";
