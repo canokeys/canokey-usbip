@@ -742,6 +742,9 @@ int main(int argc, char **argv) {
 
   // emulate touch by SIGINT
   signal(SIGINT, sigint_handler);
+  // A client may disconnect while a DEVLIST response is still being written.
+  // Let write_exact handle EPIPE instead of terminating the server process.
+  signal(SIGPIPE, SIG_IGN);
 
   // setup usbip server
   char *listen_addr = "127.0.0.1";
