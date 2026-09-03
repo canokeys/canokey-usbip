@@ -280,7 +280,7 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(raised.exception.phase, "resolve-core")
 
     def test_legacy_patch_is_applied_only_to_core_snapshot(self):
-        sha = next(iter(CORE_COMPAT_PATCHES))
+        sha = "5f1e95f8341856d994abb4566995e2379cc0612d"
         source = self.root / "source-core" / "virt-card"
         source.mkdir(parents=True)
         snapshot = self.root / "snapshot"
@@ -293,6 +293,52 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(patches, ("core-1.3-legacy-device-sim.patch",))
         self.assertTrue((snapshot / "virt-card" / "device-sim.c").is_file())
         self.assertFalse((source / "device-sim.c").exists())
+
+    def test_3_1_fabrication_patch_skips_redundant_factory_reset(self):
+        sha = "e1ee3710d97f2d6350d67fa0937a7ee2974a3e9c"
+        source = self.root / "source-core" / "virt-card"
+        source.mkdir(parents=True)
+        snapshot = self.root / "snapshot" / "virt-card"
+        snapshot.mkdir(parents=True)
+        existing_device_sim = "/* present in 3.1.0 */\n"
+        (snapshot / "device-sim.c").write_text(existing_device_sim)
+        original = (
+            "int card_fabrication_procedure(const char *lfs_root) {\n"
+            "  if (card_fs_init(lfs_root)) return 1;\n"
+            "  init_apdu_buffer();\n"
+            "  device_init();\n"
+            "  if (applets_install() < 0) return 1;\n"
+            "\n"
+            "  // reset state of applets\n"
+            "  uint8_t c_buf[1024] = \"RESET\", r_buf[1024];\n"
+            "  RAPDU rapdu = {.data = r_buf};\n"
+            "  CAPDU capdu = {.data = c_buf, .cla = 0x00, .ins = ADMIN_INS_VERIFY, .p1 = 0, .p2 = 0, .lc = 6};\n"
+            "  admin_process_apdu(&capdu, &rapdu);\n"
+            "  admin_process_apdu(&capdu, &rapdu);\n"
+            "  admin_process_apdu(&capdu, &rapdu);\n"
+            "  // now the admin PIN has been locked\n"
+            "  capdu.ins = ADMIN_INS_FACTORY_RESET;\n"
+            "  capdu.lc = 5;\n"
+            "  admin_process_apdu(&capdu, &rapdu);\n"
+            "  assert(rapdu.sw == 0x9000);\n"
+            "  oath_init();\n"
+            "  fido2_init();\n"
+            "\n"
+            "  return 0;\n"
+            "}\n"
+        )
+        (source / "fabrication.c").write_text(original)
+        (snapshot / "fabrication.c").write_text(original)
+        runner = Harness(self.options())
+
+        patches = runner.apply_core_compatibility(snapshot.parent, sha)
+
+        self.assertEqual(patches, ("core-3.1.0-fabrication.patch",))
+        patched = (snapshot / "fabrication.c").read_text()
+        self.assertNotIn("ADMIN_INS_FACTORY_RESET", patched)
+        self.assertIn("applets_install() initialized every applet", patched)
+        self.assertEqual((snapshot / "device-sim.c").read_text(), existing_device_sim)
+        self.assertIn("ADMIN_INS_FACTORY_RESET", (source / "fabrication.c").read_text())
 
     def test_legacy_patch_is_not_applied_to_unknown_core(self):
         snapshot = self.root / "snapshot"

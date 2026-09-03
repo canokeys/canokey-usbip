@@ -31,6 +31,10 @@ USBIP_PORT = 3240
 CORE_URL = "https://github.com/canokeys/canokey-core.git"
 CORE_COMPAT_PATCHES = {
     "5f1e95f8341856d994abb4566995e2379cc0612d": ("core-1.3-legacy-device-sim.patch",),
+    "e1ee3710d97f2d6350d67fa0937a7ee2974a3e9c": ("core-3.1.0-fabrication.patch",),
+}
+CORE_COMPAT_PATCH_SKIP_IF_PRESENT = {
+    "core-1.3-legacy-device-sim.patch": Path("virt-card/device-sim.c"),
 }
 DEFAULT_READINESS_STATUS = (
     "usb",
@@ -398,10 +402,12 @@ class Harness:
 
     def apply_core_compatibility(self, destination: Path, sha: str) -> tuple[str, ...]:
         patch_names = CORE_COMPAT_PATCHES.get(sha, ())
-        if not patch_names or (destination / "virt-card" / "device-sim.c").exists():
-            return ()
+        applied = []
         patch_dir = self.options.repo_dir / "compat" / "patches"
         for patch_name in patch_names:
+            skip_path = CORE_COMPAT_PATCH_SKIP_IF_PRESENT.get(patch_name)
+            if skip_path is not None and (destination / skip_path).exists():
+                continue
             try:
                 run_command(
                     ["git", "apply", "--whitespace=nowarn", str(patch_dir / patch_name)],
@@ -412,7 +418,8 @@ class Harness:
                     "resolve-core",
                     f"failed to apply canokey-core compatibility patch {patch_name}",
                 ) from exc
-        return patch_names
+            applied.append(patch_name)
+        return tuple(applied)
 
     def firmware_version_for_sha(self, sha: str) -> str | None:
         catalog = json.loads(
