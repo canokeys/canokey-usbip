@@ -198,7 +198,7 @@ jobs:
       matrix:
         firmware:
           - { id: oldest, ref: "5f1e95f8341856d994abb4566995e2379cc0612d" }
-          - { id: latest, ref: "49d49f61ed7c35506b84672bbfe87c3cf236a5d5" }
+          - { id: latest, ref: "231a9cbacbede56c2c93c8940210d0f0782586bf" }
           - { id: head, ref: "master" }
     uses: canokeys/canokey-usbip/.github/workflows/usbip-integration.yml@master
     with:
