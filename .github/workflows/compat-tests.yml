@@ -33,7 +33,7 @@ jobs:
       - name: Build against the latest mapped release core
         run: |
           ./compat/build \
-            --core-ref e1ee3710d97f2d6350d67fa0937a7ee2974a3e9c \
+            --core-ref 231a9cbacbede56c2c93c8940210d0f0782586bf \
             --output-dir "$PWD/artifacts/build"
 
       - name: Upload build diagnostics
