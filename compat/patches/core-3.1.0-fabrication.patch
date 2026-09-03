@@ -1,0 +1,20 @@
+diff --git a/virt-card/fabrication.c b/virt-card/fabrication.c
+index 50350ae..1d874b7 100644
+--- a/virt-card/fabrication.c
++++ b/virt-card/fabrication.c
+@@ -149,13 +149,3 @@ int card_fabrication_procedure(const char *lfs_root) {
+-  // reset state of applets
+-  uint8_t c_buf[1024] = "RESET", r_buf[1024];
+-  RAPDU rapdu = {.data = r_buf};
+-  CAPDU capdu = {.data = c_buf, .cla = 0x00, .ins = ADMIN_INS_VERIFY, .p1 = 0, .p2 = 0, .lc = 6};
+-  admin_process_apdu(&capdu, &rapdu);
+-  admin_process_apdu(&capdu, &rapdu);
+-  admin_process_apdu(&capdu, &rapdu);
+-  // now the admin PIN has been locked
+-  capdu.ins = ADMIN_INS_FACTORY_RESET;
+-  capdu.lc = 5;
+-  admin_process_apdu(&capdu, &rapdu);
+-  assert(rapdu.sw == 0x9000);
++  // The filesystem is new and applets_install() initialized every applet.
++  // A second, touch-gated factory reset would only repeat that work.
+   oath_init();

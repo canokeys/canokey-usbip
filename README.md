@@ -100,8 +100,10 @@ cmake -S . -B build \
 cmake --build build --target canokey-usbip
 ```
 
-Use `compat/run` or `compat/build` for firmware 1.3; direct CMake does not apply historical
-core compatibility patches.
+Use `compat/run` or `compat/build` for cataloged releases that need core
+compatibility patches. Firmware 1.3 needs the legacy virtual-card source, and
+3.1.0 needs its blank-storage fabrication sequence adapted to the newer
+touch-gated factory reset. Direct CMake does not apply these patches.
 
 ## Public test environment
 
