@@ -89,6 +89,7 @@ struct Endpoint {
   uint8_t tx_buffer[EP_TX_BUFFER_MAXSIZE];
   uint16_t tx_size;
   uint16_t tx_pos;
+  uint8_t tx_zlp_pending;
 
   uint8_t type;
   uint8_t mps;
@@ -148,6 +149,7 @@ void endpoint_mark_ready(uint8_t ep, uint8_t ready) {
 void endpoint_clear(int ep) {
   endpoints[ep].tx_size = 0;
   endpoints[ep].tx_pos = 0;
+  endpoints[ep].tx_zlp_pending = 0;
   endpoint_mark_ready(ep, 0);
 }
 
@@ -199,10 +201,12 @@ USBD_StatusTypeDef USBD_LL_Transmit(USBD_HandleTypeDef *pdev, uint8_t ep, const 
   if (!initialized) return USBD_OK;
   DBG_MSG("ep %d size %d\n", ep, size);
   ep = ep & 0x7F;
-  if (size > 0) { // skip ZLP
+  if (size > 0) {
     memcpy(endpoints[ep].tx_buffer + endpoints[ep].tx_size,
             pbuf, size);
     endpoints[ep].tx_size += size;
+  } else if (endpoints[ep].type == USBD_EP_TYPE_BULK) {
+    endpoints[ep].tx_zlp_pending = 1;
   }
 #ifdef CANOKEY_USBD_COMPACT_STATE
   if (ep == 0 && pdev->ep0_in.rem_length > USB_MAX_EP0_SIZE)
@@ -212,6 +216,17 @@ USBD_StatusTypeDef USBD_LL_Transmit(USBD_HandleTypeDef *pdev, uint8_t ep, const 
   return USBD_OK;
 }
 uint32_t USBD_LL_GetRxDataSize(USBD_HandleTypeDef *pdev, uint8_t ep) { return endpoints[ep].rx_size; }
+
+static void usbip_complete_bulk_in(uint8_t ep) {
+  endpoints[ep].tx_zlp_pending = 0;
+  USBD_LL_DataInStage(&usb_device, ep, NULL);
+
+  /* A packet ending on the endpoint boundary may schedule a terminating ZLP. */
+  if (endpoints[ep].tx_zlp_pending) {
+    endpoints[ep].tx_zlp_pending = 0;
+    USBD_LL_DataInStage(&usb_device, ep, NULL);
+  }
+}
 
 static void compat_device_loop(void) {
 #ifdef CANOKEY_DEVICE_LOOP_NO_ARGS
@@ -626,7 +641,7 @@ int usbip_submit(int client_fd) {
       // printf("->BULK IN ep %d seq %d\n", ep, seq_num);
       compat_device_loop();
       usbip_tx_submit(client_fd, ep);
-      USBD_LL_DataInStage(&usb_device, ep, NULL);
+      usbip_complete_bulk_in(ep);
       // printf("<-BULK IN\n");
     }
   } else if (endpoints[ep].type == USBD_EP_TYPE_INTR) {
