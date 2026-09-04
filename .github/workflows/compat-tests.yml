@@ -36,13 +36,24 @@ jobs:
             --core-ref aeacc59f8ff29976c0b3870493175e469dc234b1 \
             --output-dir "$PWD/artifacts/build"
 
-      - name: Test virtual NFC enable protocol
+      - name: Test current virtual NFC enable protocol
         run: |
           cmake -S . -B build/protocol \
             -DENABLE_TESTS=ON \
             -DCANOKEY_FIRMWARE_VERSION=3.1.0
           cmake --build build/protocol --target canokey-usbip-nfc-enable-test --parallel
           ctest --test-dir build/protocol -R '^nfc-enable-protocol$' --output-on-failure
+
+      - name: Test CanoKey 3.0.0 NFC enable protocol
+        run: |
+          git clone --branch 3.0.0 --depth 1 --recurse-submodules --shallow-submodules \
+            https://github.com/canokeys/canokey-core.git "$RUNNER_TEMP/canokey-core-3.0.0"
+          cmake -S . -B build/protocol-3.0.0 \
+            -DENABLE_TESTS=ON \
+            -DCANOKEY_CORE_DIR="$RUNNER_TEMP/canokey-core-3.0.0" \
+            -DCANOKEY_FIRMWARE_VERSION=3.0.0
+          cmake --build build/protocol-3.0.0 --target canokey-usbip-nfc-enable-test --parallel
+          ctest --test-dir build/protocol-3.0.0 -R '^nfc-enable-protocol$' --output-on-failure
 
       - name: Upload build diagnostics
         if: always()

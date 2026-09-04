@@ -84,12 +84,20 @@ target_include_directories(canokey-usbip SYSTEM PRIVATE
         "${CANOKEY_CORE_DIR}/virt-card"
         "${CANOKEY_CORE_DIR}")
 set(CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE OFF)
+set(CANOKEY_ADMIN_VENDOR_NFC_DEFINITION "")
 if (EXISTS "${CANOKEY_CORE_DIR}/include/admin.h")
         file(READ "${CANOKEY_CORE_DIR}/include/admin.h" CANOKEY_ADMIN_HEADER)
         if (CANOKEY_ADMIN_HEADER MATCHES
                 "admin_vendor_nfc_enable[ \t\r\n]*\\([^;]*bool[ \t\r\n]+pin_validated[ \t\r\n]*\\)")
                 set(CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE ON)
-                target_compile_definitions(canokey-usbip PRIVATE CANOKEY_ADMIN_VENDOR_NFC_ENABLE=1)
+                set(CANOKEY_ADMIN_VENDOR_NFC_DEFINITION CANOKEY_ADMIN_VENDOR_NFC_ENABLE_WITH_PIN=1)
+        elseif (CANOKEY_ADMIN_HEADER MATCHES
+                "admin_vendor_nfc_enable[ \t\r\n]*\\([^;]*RAPDU[ \t\r\n]*\\*[ \t\r\n]*rapdu[ \t\r\n]*\\)[ \t\r\n]*;")
+                set(CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE ON)
+                set(CANOKEY_ADMIN_VENDOR_NFC_DEFINITION CANOKEY_ADMIN_VENDOR_NFC_ENABLE_LEGACY=1)
+        endif ()
+        if (CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE)
+                target_compile_definitions(canokey-usbip PRIVATE ${CANOKEY_ADMIN_VENDOR_NFC_DEFINITION})
         endif ()
 endif ()
 file(READ "${CANOKEY_CORE_DIR}/include/device.h" CANOKEY_DEVICE_HEADER)
@@ -126,7 +134,7 @@ if (ENABLE_TESTS)
                         "${CANOKEY_CORE_DIR}/virt-card"
                         "${CANOKEY_CORE_DIR}")
                 target_compile_definitions(canokey-usbip-nfc-enable-test PRIVATE
-                        CANOKEY_ADMIN_VENDOR_NFC_ENABLE=1
+                        ${CANOKEY_ADMIN_VENDOR_NFC_DEFINITION}
                         HW_VARIANT_NAME="CanoKey USB/IP"
                         VIRT_VENDOR)
                 target_compile_options(canokey-usbip-nfc-enable-test PRIVATE

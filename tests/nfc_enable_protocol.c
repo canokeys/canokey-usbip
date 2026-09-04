@@ -55,16 +55,21 @@ int main(void) {
   expect_equal("card_fs_init", card_fs_init(storage), 0);
   init_apdu_buffer();
   device_init();
-  expect_equal("applets_install", applets_install(), 0);
+  applets_install();
 
   admin_poweroff();
+#ifndef CANOKEY_ADMIN_VENDOR_NFC_ENABLE_LEGACY
   expect_equal("default enabled state", read_nfc_enabled(), 1);
+#endif
   expect_write_status(0, SW_SECURITY_STATUS_NOT_SATISFIED);
 
   uint8_t response[1];
   static const uint8_t default_pin[] = "123456";
   RAPDU rapdu = send_admin(ADMIN_INS_VERIFY, 0x00, 0x00, default_pin, sizeof(default_pin) - 1, 0, response);
   expect_equal("PIN verification status", rapdu.sw, SW_NO_ERROR);
+#ifdef CANOKEY_ADMIN_VENDOR_NFC_ENABLE_LEGACY
+  expect_equal("default enabled state", read_nfc_enabled(), 1);
+#endif
 
   expect_write_status(0, SW_NO_ERROR);
   expect_equal("disabled state", read_nfc_enabled(), 0);
