@@ -21,7 +21,7 @@ jobs:
       - name: Install build and lint dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake python3-jinja2 python3-jsonschema shellcheck
+          sudo apt-get install -y build-essential cmake libcmocka-dev python3-jinja2 python3-jsonschema shellcheck
 
       - name: Check scripts and Python runner
         run: |
@@ -35,6 +35,14 @@ jobs:
           ./compat/build \
             --core-ref aeacc59f8ff29976c0b3870493175e469dc234b1 \
             --output-dir "$PWD/artifacts/build"
+
+      - name: Test virtual NFC enable protocol
+        run: |
+          cmake -S . -B build/protocol \
+            -DENABLE_TESTS=ON \
+            -DCANOKEY_FIRMWARE_VERSION=3.1.0
+          cmake --build build/protocol --target canokey-usbip-nfc-enable-test --parallel
+          ctest --test-dir build/protocol -R '^nfc-enable-protocol$' --output-on-failure
 
       - name: Upload build diagnostics
         if: always()

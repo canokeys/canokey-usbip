@@ -83,6 +83,15 @@ target_include_directories(canokey-usbip SYSTEM PRIVATE
         "${COMPAT_GENERATED_DIR}"
         "${CANOKEY_CORE_DIR}/virt-card"
         "${CANOKEY_CORE_DIR}")
+set(CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE OFF)
+if (EXISTS "${CANOKEY_CORE_DIR}/include/admin.h")
+        file(READ "${CANOKEY_CORE_DIR}/include/admin.h" CANOKEY_ADMIN_HEADER)
+        if (CANOKEY_ADMIN_HEADER MATCHES
+                "admin_vendor_nfc_enable[ \t\r\n]*\\([^;]*bool[ \t\r\n]+pin_validated[ \t\r\n]*\\)")
+                set(CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE ON)
+                target_compile_definitions(canokey-usbip PRIVATE CANOKEY_ADMIN_VENDOR_NFC_ENABLE=1)
+        endif ()
+endif ()
 file(READ "${CANOKEY_CORE_DIR}/include/device.h" CANOKEY_DEVICE_HEADER)
 if (CANOKEY_DEVICE_HEADER MATCHES "void[ \t\r\n]+device_loop[ \t\r\n]*\\([ \t\r\n]*void[ \t\r\n]*\\)")
         target_compile_definitions(canokey-usbip PRIVATE CANOKEY_DEVICE_LOOP_NO_ARGS=1)
@@ -102,6 +111,31 @@ endif ()
 if (ENABLE_TESTS)
         target_compile_options(canokey-usbip PRIVATE "--coverage" "-fsanitize=address" "-fsanitize=undefined")
         target_link_options(canokey-usbip PRIVATE "--coverage" "-fsanitize=address" "-fsanitize=undefined")
+
+        if (CANOKEY_HAS_ADMIN_VENDOR_NFC_ENABLE)
+                enable_testing()
+                add_executable(canokey-usbip-nfc-enable-test
+                        tests/nfc_enable_protocol.c
+                        Src/admin_vendor.c
+                        "${COMPAT_GENERATED_DIR}/device-sim.c"
+                        "${CANOKEY_CORE_DIR}/virt-card/usb-dummy.c"
+                        "${CANOKEY_CORE_DIR}/virt-card/fabrication.c"
+                        "${CANOKEY_CORE_DIR}/littlefs/bd/lfs_filebd.c")
+                target_include_directories(canokey-usbip-nfc-enable-test SYSTEM PRIVATE
+                        "${COMPAT_GENERATED_DIR}"
+                        "${CANOKEY_CORE_DIR}/virt-card"
+                        "${CANOKEY_CORE_DIR}")
+                target_compile_definitions(canokey-usbip-nfc-enable-test PRIVATE
+                        CANOKEY_ADMIN_VENDOR_NFC_ENABLE=1
+                        HW_VARIANT_NAME="CanoKey USB/IP"
+                        VIRT_VENDOR)
+                target_compile_options(canokey-usbip-nfc-enable-test PRIVATE
+                        "--coverage" "-fsanitize=address" "-fsanitize=undefined")
+                target_link_options(canokey-usbip-nfc-enable-test PRIVATE
+                        "--coverage" "-fsanitize=address" "-fsanitize=undefined")
+                target_link_libraries(canokey-usbip-nfc-enable-test canokey-core)
+                add_test(NAME nfc-enable-protocol COMMAND canokey-usbip-nfc-enable-test)
+        endif ()
 endif ()
 target_compile_definitions(canokey-usbip PRIVATE
         HW_VARIANT_NAME="CanoKey USB/IP"
