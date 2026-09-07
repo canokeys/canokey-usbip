@@ -33,7 +33,7 @@ jobs:
       - name: Build against the latest mapped release core
         run: |
           ./compat/build \
-            --core-ref 4d3bc697bf3fb24e5ded4e884ab19bf8e8b5e2ac \
+            --core-ref ed9fe3b6ba66873b694b5668145b9fa03edac373 \
             --output-dir "$PWD/artifacts/build"
 
       - name: Test current virtual NFC enable protocol
