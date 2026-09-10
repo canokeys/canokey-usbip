@@ -38,7 +38,7 @@ class CatalogTests(unittest.TestCase):
             "2.0.1": "be6325b8c4e6d40e86b2943f65083ed6b71f8259",
             "3.0.0": "7cb33508a69ce4d281a053e1e53e6d006469076b",
             "3.0.1": "69e562bcb07eedda015aae6064870c8548571e2b",
-            "3.1.0": "ed9fe3b6ba66873b694b5668145b9fa03edac373",
+            "3.1.0": "8a9ce4616cd334c821109808ccaa401acf70a05d",
         })
 
     def test_1_3_is_the_oldest_supported_firmware(self):

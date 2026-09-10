@@ -42,7 +42,7 @@
     },
     {
       "id": "3.1.0",
-      "core_commit": "ed9fe3b6ba66873b694b5668145b9fa03edac373"
+      "core_commit": "8a9ce4616cd334c821109808ccaa401acf70a05d"
     }
   ],
   "aliases": {
@@ -111,8 +111,8 @@
     },
     {
       "id": "3.1.0",
-      "ref": "ed9fe3b6ba66873b694b5668145b9fa03edac373",
-      "verified_sha": "ed9fe3b6ba66873b694b5668145b9fa03edac373",
+      "ref": "8a9ce4616cd334c821109808ccaa401acf70a05d",
+      "verified_sha": "8a9ce4616cd334c821109808ccaa401acf70a05d",
       "adapter": "device-loop-no-args-usbd-init-done",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
     },
