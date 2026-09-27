@@ -295,7 +295,7 @@ class HarnessTests(unittest.TestCase):
         self.assertFalse((source / "device-sim.c").exists())
 
     def test_3_1_fabrication_patch_skips_redundant_factory_reset(self):
-        sha = "50ae0dfe1752f3ed514ea192bfe15e25cda4e39c"
+        sha = "e558d5cc6169acca1508238f7b584b8e00f8786d"
         source = self.root / "source-core" / "virt-card"
         source.mkdir(parents=True)
         snapshot = self.root / "snapshot" / "virt-card"
