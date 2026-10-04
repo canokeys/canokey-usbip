@@ -2,6 +2,7 @@
 /* USB/IP supplies FIFOs only. Rust owns USB control, CCID, APDUs and storage. */
 #define RUST_EP0_PACKET_BYTES 16
 #define RUST_DATA_PACKET_BYTES 64
+#define RUST_KEYBOARD_PACKET_BYTES 8
 #define USBIP_SUBMIT_REPLY 0x03
 #define USBIP_REQUEST_TIMEOUT_MS 10000
 static uint8_t rust_rx[EP_NUM][RUST_DATA_PACKET_BYTES];
@@ -22,8 +23,8 @@ void ck_usb_dcd_stop(void) { memset(rust_pending, 0, sizeof(rust_pending)); }
 void ck_usb_dcd_open(uint8_t endpoint) {
   unsigned ep = endpoint & 0x7F;
   assert(ep < EP_NUM);
-  endpoints[ep].type = ep == 0 ? USBD_EP_TYPE_CTRL : ep == 2 ? USBD_EP_TYPE_INTR : USBD_EP_TYPE_BULK;
-  endpoints[ep].mps = ep == 0 ? RUST_EP0_PACKET_BYTES : RUST_DATA_PACKET_BYTES;
+  endpoints[ep].type = ep == 0 ? USBD_EP_TYPE_CTRL : ep == 3 ? USBD_EP_TYPE_BULK : USBD_EP_TYPE_INTR;
+  endpoints[ep].mps = ep == 0 ? RUST_EP0_PACKET_BYTES : ep == 1 ? RUST_KEYBOARD_PACKET_BYTES : RUST_DATA_PACKET_BYTES;
   endpoints[ep].rx_buffer = rust_rx[ep];
   endpoints[ep].rx_size = endpoints[ep].mps;
   rust_halted[ep][endpoint >> 7] = 0;
@@ -94,8 +95,17 @@ static int rust_submit(int client_fd) {
   uint32_t ep = ntohl(request.ep);
   uint32_t capacity = ntohl(request.transfer_buffer_length);
   uint32_t direction = ntohl(request.direction);
-  if (ep >= EP_NUM || capacity > EP_TX_BUFFER_MAXSIZE || direction > 1) return -1;
-  if (ep != 0 && endpoints[ep].mps == 0) return -1;
+  if (ep >= EP_NUM || (direction == 0 && capacity > EP_TX_BUFFER_MAXSIZE) || direction > 1) {
+    fprintf(stderr, "Rust USB/IP rejected submit: ep=%u capacity=%u direction=%u\n", ep, capacity, direction);
+    return -1;
+  }
+  if (ep != 0 && endpoints[ep].mps == 0) {
+    fprintf(stderr, "Rust USB/IP submit to unopened endpoint %u\n", ep);
+    return -1;
+  }
+  /* libccid can request its maximum receive buffer. A short device reply
+   * uses our bounded staging buffer without allocating the host capacity. */
+  if (direction == 1 && capacity > EP_TX_BUFFER_MAXSIZE) capacity = EP_TX_BUFFER_MAXSIZE;
   struct RetSubmitBody response = {0};
   response.seq_num = request.seq_num;
   response.start_frame = htonl(UINT32_MAX);

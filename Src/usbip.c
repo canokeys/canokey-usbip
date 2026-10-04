@@ -448,11 +448,15 @@ int usbip_devlist(int client_fd) {
       0x00,
       0x00,
       0x02,
-      // speed = high
+      // USB/IP speed: Rust descriptors use full-speed packet sizes.
       0x00,
       0x00,
       0x00,
+#ifdef CANOKEY_RUST_USB
+      0x02,
+#else
       0x03,
+#endif
       // idVendor
       HI(USBD_VID),
       LO(USBD_VID),
@@ -564,11 +568,15 @@ int usbip_import(int client_fd) {
       0x00,
       0x00,
       0x02,
-      // speed = high
+      // USB/IP speed: Rust descriptors use full-speed packet sizes.
       0x00,
       0x00,
       0x00,
+#ifdef CANOKEY_RUST_USB
+      0x02,
+#else
       0x03,
+#endif
       // idVendor
       HI(USBD_VID),
       LO(USBD_VID),

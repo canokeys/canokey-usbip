@@ -12,6 +12,8 @@ import time
 EP_CCID = 0x03
 CCID_HEADER_BYTES = 10
 USBIP_HEADER_BYTES = 48
+USBIP_SPEED_FULL = 0x02
+LIBCCID_RECEIVE_BYTES = 65554
 
 
 class Device:
@@ -22,7 +24,8 @@ class Device:
         # USB/IP 1.1 OP_REQ_IMPORT with bus ID 1-1.
         self.socket.sendall(bytes.fromhex('0111800300000000') + b'1-1'.ljust(32, b'\0'))
         assert self.read(8) == bytes.fromhex('0111000300000000')
-        self.read(312)
+        imported = self.read(312)
+        assert int.from_bytes(imported[296:300], 'big') == USBIP_SPEED_FULL
         self.transfer(0, False, b'', bytes.fromhex('0005010000000000'))
         self.transfer(0, False, b'', bytes.fromhex('0009010000000000'))
 
@@ -51,7 +54,7 @@ class Device:
         self.ccid_sequence = (sequence + 1) & 0xFF
         header = struct.pack('<BI5B', kind, len(data), 0, sequence, 0, 0, 0)
         self.transfer(EP_CCID, False, header + data)
-        response = self.transfer(EP_CCID, True)
+        response = self.transfer(EP_CCID, True, capacity=LIBCCID_RECEIVE_BYTES)
         assert len(response) >= CCID_HEADER_BYTES
         size = int.from_bytes(response[1:5], 'little')
         assert response[6] == sequence and response[7] & 0xC0 == 0, response
