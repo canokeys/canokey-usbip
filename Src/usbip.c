@@ -601,6 +601,9 @@ int usbip_import(int client_fd) {
       0x03,//USBD_MAX_NUM_INTERFACES,
   };
   if (write_exact(client_fd, resp_body, sizeof(resp_body)) < 0) return -1;
+#ifdef CANOKEY_RUST_USB
+  rust_attach();
+#endif
   return 0;
 }
 

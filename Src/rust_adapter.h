@@ -13,6 +13,7 @@
 #define LO(value) ((value) & 0xFF)
 int ck_host_usbip_open(const char *path, uint8_t touch);
 void ck_host_usbip_loop(void);
+void ck_usb_boot_reset(void);
 uint32_t device_get_tick(void);
 int write_exact(int fd, const uint8_t *bytes, size_t length);
 int read_exact(int fd, uint8_t *bytes, size_t length);

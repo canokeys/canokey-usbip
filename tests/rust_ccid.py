@@ -26,7 +26,7 @@ class Device:
         assert self.read(8) == bytes.fromhex('0111000300000000')
         imported = self.read(312)
         assert int.from_bytes(imported[296:300], 'big') == USBIP_SPEED_FULL
-        self.transfer(0, False, b'', bytes.fromhex('0005010000000000'))
+        # Linux vhci_hcd consumes SET_ADDRESS rather than forwarding its URB.
         self.transfer(0, False, b'', bytes.fromhex('0009010000000000'))
 
     def read(self, count):

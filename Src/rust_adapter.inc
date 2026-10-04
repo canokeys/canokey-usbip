@@ -30,7 +30,12 @@ void ck_usb_dcd_open(uint8_t endpoint) {
   rust_halted[ep][endpoint >> 7] = 0;
 }
 void ck_usb_dcd_close(uint8_t endpoint) {
-  if (endpoint & 0x80) rust_pending[endpoint & 0x7F] = 0;
+  unsigned ep = endpoint & 0x7F;
+  endpoints[ep].mps = 0;
+  if (endpoint & 0x80) {
+    rust_pending[ep] = 0;
+    endpoints[ep].host_ready = 0;
+  }
 }
 void ck_usb_dcd_stall(uint8_t endpoint, uint8_t halt) {
   rust_halted[endpoint & 0x7F][endpoint >> 7] = halt;
@@ -88,6 +93,16 @@ static int rust_complete_interrupt(int client_fd) {
     ck_usb_in(ep | 0x80);
   }
   return 0;
+}
+static void rust_attach(void) {
+  /* vhci_hcd consumes SET_ADDRESS locally. Import represents attachment to
+   * that addressed device; use the production control path to mirror it. */
+  const uint8_t address_setup[8] = {0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+  ck_usb_boot_reset();
+  ck_usb_setup(address_setup, sizeof(address_setup));
+  assert(rust_pending[0] && rust_packet_length[0] == 0);
+  rust_pending[0] = 0;
+  ck_usb_in(0x80);
 }
 static int rust_submit(int client_fd) {
   struct CmdSubmitBody request;
