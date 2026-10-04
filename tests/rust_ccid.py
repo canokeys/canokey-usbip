@@ -13,6 +13,7 @@ EP_CCID = 0x03
 CCID_HEADER_BYTES = 10
 USBIP_HEADER_BYTES = 48
 USBIP_SPEED_FULL = 0x02
+USB_BCD_DEVICE = 0x0400
 LIBCCID_RECEIVE_BYTES = 65554
 
 
@@ -26,6 +27,7 @@ class Device:
         assert self.read(8) == bytes.fromhex('0111000300000000')
         imported = self.read(312)
         assert int.from_bytes(imported[296:300], 'big') == USBIP_SPEED_FULL
+        assert int.from_bytes(imported[304:306], 'big') == USB_BCD_DEVICE
         # Linux vhci_hcd consumes SET_ADDRESS rather than forwarding its URB.
         self.transfer(0, False, b'', bytes.fromhex('0009010000000000'))
 

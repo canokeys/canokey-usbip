@@ -464,8 +464,13 @@ int usbip_devlist(int client_fd) {
       HI(USBD_PID),
       LO(USBD_PID),
       // bcdDevice
+#ifdef CANOKEY_RUST_USB
+      HI(CANOKEY_USB_BCD_DEVICE),
+      LO(CANOKEY_USB_BCD_DEVICE),
+#else
       0x00,
       0x01,
+#endif
       // bDeviceClass
       0x00,
       // bDeviceSubClass
@@ -584,8 +589,13 @@ int usbip_import(int client_fd) {
       HI(USBD_PID),
       LO(USBD_PID),
       // bcdDevice
+#ifdef CANOKEY_RUST_USB
+      HI(CANOKEY_USB_BCD_DEVICE),
+      LO(CANOKEY_USB_BCD_DEVICE),
+#else
       0x00,
       0x01,
+#endif
       // bDeviceClass
       0x00,
       // bDeviceSubClass
