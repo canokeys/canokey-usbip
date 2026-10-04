@@ -15,6 +15,17 @@ Application behavior tests stay in their owning repositories:
 This repository owns firmware selection, virtual device build/storage, USB/IP lifecycle,
 readiness, logging, timeout, and cleanup. It is not a CanoKey integration-test monorepo.
 
+Firmware `4.0.0` selects the independent Rust core. Its production USB and CCID
+runtime owns descriptors, framing, APDU dispatch and durable host records; the
+USB/IP adapter supplies packet FIFOs and completion callbacks. Building it needs
+Rust `nightly-2026-09-04` and OpenSSL development headers. Admin reports `4.0.0`,
+GetInfo reports firmware `400`, and USB bcdDevice is `0x0400`. PIV and OATH keep
+their independent application version `6.0.0`.
+
+The 4.0.0 catalog advertises tested CCID, storage and simulated touch capabilities.
+NFC, HID, WebUSB and fault recovery acceptance are deferred. A kernel-free
+enumeration/CCID check is available as `python3 tests/rust_ccid.py BUILD/canokey-usbip`.
+
 ## Local Linux quick start
 
 ```bash

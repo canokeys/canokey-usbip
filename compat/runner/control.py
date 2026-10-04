@@ -49,6 +49,18 @@ def stop_pid(pid: int | None) -> None:
         pass
 
 
+def wait_reader_removed(platform: LinuxPlatform, reader: str, timeout: float = 10) -> None:
+    # libccid removes readers asynchronously after USB detach. Reusing the
+    # same name before removal would poison the next attachment's baseline.
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        readers = platform.pcsc_readers()
+        if readers is not None and reader not in readers:
+            return
+        time.sleep(0.1)
+    raise RuntimeError(f"PC/SC reader did not disappear after detach: {reader}")
+
+
 def start(state_path: Path, state: dict) -> tuple[LinuxPlatform, dict]:
     output_dir = Path(state["output_dir"])
     platform = LinuxPlatform(
@@ -126,6 +138,9 @@ def main() -> int:
         stop_pid(state.get("pid"))
         state.update({"pid": None, "usb_port": None})
         state_path.write_text(json.dumps(state, indent=2) + "\n")
+        reader = os.environ.get("CANOKEY_PCSC_READER")
+        if args.command == "restart" and reader:
+            wait_reader_removed(platform, reader)
     if args.command in ("start", "restart"):
         start(state_path, state)
     elif args.command == "attach":

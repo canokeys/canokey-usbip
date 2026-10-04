@@ -21,7 +21,7 @@ jobs:
       - name: Install build and lint dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake libcmocka-dev python3-jinja2 python3-jsonschema shellcheck
+          sudo apt-get install -y build-essential cmake libcmocka-dev libssl-dev python3-jinja2 python3-jsonschema shellcheck
 
       - name: Check scripts and Python runner
         run: |
@@ -35,6 +35,16 @@ jobs:
           ./compat/build \
             --core-ref e558d5cc6169acca1508238f7b584b8e00f8786d \
             --output-dir "$PWD/artifacts/build"
+
+      - name: Install Rust firmware toolchain
+        run: rustup toolchain install nightly-2026-09-04 --profile minimal
+
+      - name: Build Rust firmware 4.0.0 and test CCID wire behavior
+        run: |
+          cc -std=c11 -D_DEFAULT_SOURCE -Wall -Wno-unused-function tests/rust_adapter.c -o "$RUNNER_TEMP/rust-adapter-test"
+          "$RUNNER_TEMP/rust-adapter-test"
+          ./compat/build --core-ref 4.0.0 --output-dir "$PWD/artifacts/rust-build" --build-dir "$PWD/build/rust4"
+          python3 tests/rust_ccid.py "$PWD/build/rust4/canokey-usbip"
 
       - name: Test current virtual NFC enable protocol
         run: |
@@ -60,5 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: compat-build
-          path: artifacts/build/
+          path: |
+            artifacts/build/
+            artifacts/rust-build/
           if-no-files-found: warn
