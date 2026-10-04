@@ -873,6 +873,9 @@ int main(int argc, char **argv) {
 
     usbip_loop(client_fd);
 
+#ifdef CANOKEY_RUST_USB
+    rust_disconnect();
+#endif
     printf("closing connection\n");
     close(client_fd);
   }

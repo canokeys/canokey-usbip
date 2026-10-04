@@ -12,6 +12,7 @@ static uint8_t rust_packet[EP_NUM][RUST_DATA_PACKET_BYTES];
 static void (*rust_timer)(void);
 static uint32_t rust_deadline;
 static volatile sig_atomic_t rust_touch_requested;
+static uint8_t rust_attached;
 int ck_host_stopping(void) { return 0; }
 void device_set_timeout(void (*callback)(void), uint16_t milliseconds) {
   rust_timer = callback;
@@ -76,6 +77,7 @@ static void sigint_handler(int signal_number) {
   rust_touch_requested = 1;
 }
 static int rust_complete_interrupt(int client_fd) {
+  if (!rust_attached) return 0;
   for (unsigned ep = 1; ep < EP_NUM; ++ep) {
     if (!endpoints[ep].host_ready || !rust_pending[ep]) continue;
     unsigned count = rust_packet_length[ep];
@@ -103,8 +105,23 @@ static void rust_attach(void) {
   assert(rust_pending[0] && rust_packet_length[0] == 0);
   rust_pending[0] = 0;
   ck_usb_in(0x80);
+  rust_attached = 1;
+}
+static void rust_disconnect(void) {
+  /* Requests and buffered replies belong to the socket that imported them. */
+  rust_attached = 0;
+  rust_timer = NULL;
+  ck_usb_boot_reset();
+  memset(rust_pending, 0, sizeof(rust_pending));
+  memset(rust_packet, 0, sizeof(rust_packet));
+  memset(rust_packet_length, 0, sizeof(rust_packet_length));
+  for (unsigned ep = 0; ep < EP_NUM; ++ep) {
+    endpoints[ep].host_ready = 0;
+    memset(&endpoints[ep].intr_in, 0, sizeof(endpoints[ep].intr_in));
+  }
 }
 static int rust_submit(int client_fd) {
+  if (!rust_attached) return -1;
   struct CmdSubmitBody request;
   if (read_exact(client_fd, (uint8_t *)&request, sizeof(request)) < 0) return -1;
   uint32_t ep = ntohl(request.ep);
@@ -126,22 +143,29 @@ static int rust_submit(int client_fd) {
   response.start_frame = htonl(UINT32_MAX);
   uint8_t bytes[EP_TX_BUFFER_MAXSIZE];
   uint32_t length = 0;
-  if (ep != 0 && endpoints[ep].type == USBD_EP_TYPE_INTR && direction == 1 && !rust_pending[ep]) {
-    if (endpoints[ep].host_ready) return -1;
-    endpoints[ep].intr_in = request;
-    endpoint_mark_ready(ep, 1);
-    return 0;
+  if (ep != 0 && endpoints[ep].type == USBD_EP_TYPE_INTR && direction == 1) {
+    if (endpoints[ep].host_ready) {
+      response.status = htonl(-EBUSY);
+      goto send_reply;
+    }
+    if (!rust_pending[ep] && !rust_halted[ep][1]) {
+      endpoints[ep].intr_in = request;
+      endpoint_mark_ready(ep, 1);
+      return 0;
+    }
   }
   if (ep == 0) {
     rust_pending[0] = 0;
     ck_usb_setup(request.setup, sizeof(request.setup));
   }
   if (direction == 0) {
+    uint8_t halted = ep != 0 && rust_halted[ep][0];
+    if (halted) response.status = htonl(-EPIPE);
     while (length < capacity) {
       unsigned count = capacity - length;
       if (count > endpoints[ep].mps) count = endpoints[ep].mps;
       if (read_exact(client_fd, bytes, count) < 0) return -1;
-      ck_usb_out(ep, bytes, count);
+      if (!halted) ck_usb_out(ep, bytes, count);
       compat_device_loop();
       length += count;
     }
@@ -175,7 +199,8 @@ static int rust_submit(int client_fd) {
     }
     if (ep == 0) ck_usb_out(0, NULL, 0);
   }
-  response.actual_length = htonl(length);
+send_reply:
+  response.actual_length = htonl(direction == 0 && response.status != 0 ? 0 : length);
   const uint8_t command[4] = {0, 0, 0, USBIP_SUBMIT_REPLY};
   if (write_exact(client_fd, command, sizeof(command)) < 0 ||
       write_exact(client_fd, (uint8_t *)&response, sizeof(response)) < 0) return -1;

@@ -98,7 +98,11 @@ def main():
                 print('Rust USB/IP: enumeration, CCID power, Admin identity/auth/PASS read passed')
             finally:
                 process.terminate()
-                process.wait(timeout=5)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
 
 
 if __name__ == '__main__':

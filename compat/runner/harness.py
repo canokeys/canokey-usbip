@@ -28,6 +28,7 @@ DEFAULT_VID = "20a0"
 DEFAULT_PID = "42d4"
 BUS_ID = "1-1"
 USBIP_PORT = 3240
+SCARD_E_NO_READERS_AVAILABLE = 0x8010002E
 CORE_URL = "https://github.com/canokeys/canokey-core.git"
 CORE_COMPAT_PATCHES = {
     "5f1e95f8341856d994abb4566995e2379cc0612d": ("core-1.3-legacy-device-sim.patch",),
@@ -48,6 +49,10 @@ DEFAULT_READINESS_STATUS = (
 
 class HarnessError(RuntimeError):
     pass
+
+
+class PcscQueryError(HarnessError):
+    """PC/SC is installed but failed to enumerate its readers."""
 
 
 class PhaseError(HarnessError):
@@ -211,7 +216,10 @@ class LinuxPlatform:
         return devices
 
     def attach(self, before: set[Path]) -> None:
-        readers_before = self.pcsc_readers()
+        try:
+            readers_before = self.pcsc_readers()
+        except PcscQueryError as exc:
+            raise PhaseError("attach", f"Cannot establish PC/SC reader baseline: {exc}") from exc
         self.pcsc_readers_before = set(readers_before or [])
         command = ["usbip", "--tcp-port", str(USBIP_PORT), "attach", "--remote", "127.0.0.1", "--busid", BUS_ID]
         try:
@@ -267,6 +275,7 @@ class LinuxPlatform:
 
     @staticmethod
     def pcsc_readers() -> list[str] | None:
+        """Return readers, None for unavailable PC/SC, or raise on query failure."""
         library_name = ctypes.util.find_library("pcsclite")
         if not library_name:
             return None
@@ -280,16 +289,22 @@ class LinuxPlatform:
         if list_readers is None:
             return None
         context = ctypes.c_ulong()
-        if establish(0, None, None, ctypes.byref(context)) != 0:
-            return []
+        status = establish(0, None, None, ctypes.byref(context)) & 0xFFFFFFFF
+        if status != 0:
+            raise PcscQueryError(f"SCardEstablishContext failed: {status:#010x}")
         try:
             length = ctypes.c_uint32(0)
-            status = list_readers(context, None, None, ctypes.byref(length))
-            if status != 0 or length.value == 0:
+            status = list_readers(context, None, None, ctypes.byref(length)) & 0xFFFFFFFF
+            if status == SCARD_E_NO_READERS_AVAILABLE:
+                return []
+            if status != 0:
+                raise PcscQueryError(f"SCardListReaders failed: {status:#010x}")
+            if length.value == 0:
                 return []
             buffer = ctypes.create_string_buffer(length.value)
-            if list_readers(context, None, buffer, ctypes.byref(length)) != 0:
-                return []
+            status = list_readers(context, None, buffer, ctypes.byref(length)) & 0xFFFFFFFF
+            if status != 0:
+                raise PcscQueryError(f"SCardListReaders buffer query failed: {status:#010x}")
             return [item.decode(errors="replace") for item in buffer.raw.split(b"\0") if item]
         finally:
             release(context)
@@ -300,7 +315,10 @@ class LinuxPlatform:
         requirement_status: dict[str, bool] = {}
         while time.monotonic() < deadline:
             classes = self._interface_classes()
-            readers = self.pcsc_readers()
+            try:
+                readers = self.pcsc_readers()
+            except PcscQueryError as exc:
+                raise PhaseError("readiness", str(exc)) from exc
             new_readers = sorted(set(readers or []) - self.pcsc_readers_before)
             status = {
                 "usb": bool(self.device_path and self.device_path.exists()),

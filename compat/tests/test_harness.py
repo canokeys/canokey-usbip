@@ -20,6 +20,8 @@ from harness import (  # noqa: E402
     LinuxPlatform,
     Options,
     PhaseError,
+    PcscQueryError,
+    SCARD_E_NO_READERS_AVAILABLE,
 )
 
 
@@ -371,6 +373,46 @@ class HarnessTests(unittest.TestCase):
             status = platform.wait_ready()
         self.assertTrue(status["pcsc"])
         self.assertEqual(status["pcsc_readers"], ["Attached virtual reader"])
+
+    def test_pcsc_query_distinguishes_no_readers_from_errors(self):
+        for establish_status, list_status, expected in [
+            (0, SCARD_E_NO_READERS_AVAILABLE, []),
+            (0x8010001D, 0, "SCardEstablishContext"),
+            (0, 0x8010001D, "SCardListReaders"),
+        ]:
+            with self.subTest(establish=establish_status, listing=list_status):
+                library = mock.Mock()
+                library.SCardEstablishContext.return_value = establish_status
+                library.SCardListReaders.return_value = list_status
+                with (
+                    mock.patch("harness.ctypes.util.find_library", return_value="pcsclite"),
+                    mock.patch("harness.ctypes.CDLL", return_value=library),
+                ):
+                    if isinstance(expected, list):
+                        self.assertEqual(LinuxPlatform.pcsc_readers(), expected)
+                    else:
+                        with self.assertRaisesRegex(PcscQueryError, expected):
+                            LinuxPlatform.pcsc_readers()
+                self.assertEqual(library.SCardReleaseContext.call_count, int(establish_status == 0))
+
+    def test_attach_does_not_use_failed_pcsc_baseline(self):
+        platform = LinuxPlatform(self.output, 1)
+        with (
+            mock.patch.object(platform, "pcsc_readers", side_effect=PcscQueryError("daemon unavailable")),
+            mock.patch("harness.run_command") as command,
+        ):
+            with self.assertRaisesRegex(PhaseError, "Cannot establish PC/SC reader baseline"):
+                platform.attach(set())
+        command.assert_not_called()
+
+    def test_readiness_does_not_accept_pcsc_query_failure(self):
+        platform = LinuxPlatform(self.output, 1)
+        with (
+            mock.patch.object(platform, "_interface_classes", return_value={"0b", "03", "ff"}),
+            mock.patch.object(platform, "pcsc_readers", side_effect=PcscQueryError("query failed")),
+        ):
+            with self.assertRaisesRegex(PhaseError, "query failed"):
+                platform.wait_ready()
 
     def test_default_readiness_still_requires_hidraw(self):
         device = self.root / "1-1"

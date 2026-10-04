@@ -98,6 +98,13 @@ class ControlTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "did not disappear"):
                 control.wait_reader_removed(platform, "old")
 
+    def test_wait_reader_removed_does_not_accept_query_failure(self):
+        from harness import PcscQueryError
+        platform = mock.Mock()
+        platform.pcsc_readers.side_effect = PcscQueryError("daemon unavailable")
+        with self.assertRaisesRegex(PcscQueryError, "daemon unavailable"):
+            control.wait_reader_removed(platform, "old")
+
     def test_restart_readiness_failure_cleans_process_attachment_and_state(self):
         with (
             mock.patch.object(control, "LinuxPlatform", FailingPlatform),
