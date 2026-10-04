@@ -80,6 +80,24 @@ class ControlTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_wait_reader_removed_preserves_unrelated_readers(self):
+        platform = mock.Mock()
+        platform.pcsc_readers.side_effect = [["old", "other"], ["other"]]
+        with mock.patch.object(control.time, "sleep") as sleep:
+            control.wait_reader_removed(platform, "old")
+        sleep.assert_called_once_with(0.1)
+        self.assertEqual(platform.pcsc_readers.call_count, 2)
+
+    def test_wait_reader_removed_times_out_on_stale_name(self):
+        platform = mock.Mock()
+        platform.pcsc_readers.return_value = ["old"]
+        with (
+            mock.patch.object(control.time, "monotonic", side_effect=[0, 0, 11]),
+            mock.patch.object(control.time, "sleep"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "did not disappear"):
+                control.wait_reader_removed(platform, "old")
+
     def test_restart_readiness_failure_cleans_process_attachment_and_state(self):
         with (
             mock.patch.object(control, "LinuxPlatform", FailingPlatform),
