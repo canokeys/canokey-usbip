@@ -432,6 +432,9 @@ class Harness:
 
     @staticmethod
     def core_usb_identity(destination: Path) -> tuple[str, str]:
+        if (destination / "crates/ffi/Cargo.toml").is_file():
+            # The Rust descriptor has a fixed product identity shared with CIU.
+            return DEFAULT_VID, DEFAULT_PID
         descriptor = destination / "interfaces" / "USB" / "device" / "usbd_desc.h"
         try:
             content = descriptor.read_text()
@@ -449,11 +452,14 @@ class Harness:
     def resolve_core(self) -> CoreSource:
         destination = self.workspace / "core"
         if self.options.core_ref:
+            catalog = json.loads((self.options.repo_dir / "compat/config/firmwares.yaml").read_text())
+            fetch_ref = next((item["core_commit"] for item in catalog["release_mappings"]
+                              if item["id"] == self.options.core_ref), self.options.core_ref)
             destination.mkdir(parents=True)
             run_command(["git", "init", "--quiet", str(destination)])
             run_command(["git", "-C", str(destination), "remote", "add", "origin", CORE_URL])
             try:
-                run_command(["git", "-C", str(destination), "fetch", "--quiet", "--depth", "1", "origin", self.options.core_ref])
+                run_command(["git", "-C", str(destination), "fetch", "--quiet", "--depth", "1", "origin", fetch_ref])
             except HarnessError as exc:
                 raise PhaseError("resolve-core", f"invalid or unreachable canokey-core ref: {self.options.core_ref}") from exc
             run_command(["git", "-C", str(destination), "checkout", "--quiet", "--detach", "FETCH_HEAD"])
@@ -481,7 +487,8 @@ class Harness:
             copy_core_tree(source, destination)
         except OSError as exc:
             raise PhaseError("resolve-core", f"failed to snapshot canokey-core: {exc}") from exc
-        if not (destination / "canokey-crypto" / "CMakeLists.txt").exists():
+        crypto = "third_party/canokey-crypto" if (destination / "crates/ffi/Cargo.toml").is_file() else "canokey-crypto"
+        if not (destination / crypto / "CMakeLists.txt").exists():
             raise PhaseError("resolve-core", "canokey-core submodules are missing; run git submodule update --init --recursive")
         ref = "external" if self.options.core_dir else "submodule"
         patches = self.apply_core_compatibility(destination, sha)

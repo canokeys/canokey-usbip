@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+#ifdef CANOKEY_RUST_USB
+#include "rust_adapter.h"
+#else
 #include "apdu.h"
 #include "ccid.h"
 #include "device.h"
@@ -9,6 +12,7 @@
 #include "usbd_core.h"
 #include "usbd_desc.h"
 #include "webusb.h"
+#endif
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -22,6 +26,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -161,7 +166,9 @@ void endpoints_init() {
 }
 
 // mock device functions
-
+#ifdef CANOKEY_RUST_USB
+#include "rust_adapter.inc"
+#else
 USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev) { return USBD_OK; }
 /* Required by canokey-core 3.0.x after all class endpoints are opened. */
 #ifdef CANOKEY_USBD_LL_INIT_DONE
@@ -279,6 +286,7 @@ void sigint_handler() {
     fprintf(stderr, "Toggling touch status to %hhu, re-type Ctrl-C again quickly to quit\n", get_touch_result());
   }
 }
+#endif
 
 void usbip_payload_rx(int client_fd, uint32_t ep) {
   uint32_t transfer_buffer_length = ntohl(endpoints[ep].submit.transfer_buffer_length);
@@ -589,6 +597,9 @@ int usbip_import(int client_fd) {
 }
 
 int usbip_submit(int client_fd) {
+#ifdef CANOKEY_RUST_USB
+  return rust_submit(client_fd);
+#else
   // body
   struct CmdSubmitBody body;
   if (read_exact(client_fd, (uint8_t *)&body, sizeof(body)) < 0) return -1;
@@ -678,6 +689,7 @@ int usbip_submit(int client_fd) {
       assert(false);
   }
   return 0;
+#endif
 }
 
 int usbip_unlink(int client_fd) {
@@ -718,6 +730,14 @@ int usbip_unlink(int client_fd) {
 
 void usbip_loop(int client_fd) {
   while (1) {
+#ifdef CANOKEY_RUST_USB
+    compat_device_loop();
+    if (rust_complete_interrupt(client_fd) < 0) return;
+    struct pollfd pending = {.fd = client_fd, .events = POLLIN};
+    int available = poll(&pending, 1, 1);
+    if (available < 0) { if (errno == EINTR) continue; return; }
+    if (!available) continue;
+#endif
     uint8_t command[4];
     if (read_exact(client_fd, command, sizeof(command)) < 0) return;
 
@@ -784,6 +804,10 @@ int main(int argc, char **argv) {
   printf("listening on %s:%d\n", listen_addr, port);
 
   // init usb stack
+#ifdef CANOKEY_RUST_USB
+  endpoints_init();
+  if (ck_host_usbip_open(canokey_file, touch) != 0) return 1;
+#else
   usb_device_init();
   endpoints_init();
   // set address to 1
@@ -805,6 +829,7 @@ int main(int argc, char **argv) {
   // if touch is not on,
   // emulate the NFC mode, where user-presence tests are skipped
   set_nfc_state(!touch);
+#endif
 
   // disable stdout buffer
   setvbuf(stdout, NULL, _IONBF, 0);

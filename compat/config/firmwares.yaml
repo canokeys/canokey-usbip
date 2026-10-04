@@ -43,11 +43,15 @@
     {
       "id": "3.1.0",
       "core_commit": "e558d5cc6169acca1508238f7b584b8e00f8786d"
+    },
+    {
+      "id": "4.0.0",
+      "core_commit": "f28e8f6b2d1dd3e780e28c2cbc668c34adbf90cf"
     }
   ],
   "aliases": {
     "oldest-supported": "1.3",
-    "latest": "3.1.0",
+    "latest": "4.0.0",
     "head": "head"
   },
   "firmwares": [
@@ -115,6 +119,15 @@
       "verified_sha": "e558d5cc6169acca1508238f7b584b8e00f8786d",
       "adapter": "device-loop-no-args-usbd-init-done",
       "capabilities": ["ccid", "hid", "webusb", "persistent-storage", "touch-simulation"]
+    },
+    {
+      "id": "4.0.0",
+      "ref": "f28e8f6b2d1dd3e780e28c2cbc668c34adbf90cf",
+      "verified_sha": "f28e8f6b2d1dd3e780e28c2cbc668c34adbf90cf",
+      "adapter": "rust-usb-runtime",
+      "usb_vid": "20a0",
+      "usb_pid": "42d4",
+      "capabilities": ["ccid", "persistent-storage", "touch-simulation"]
     },
     {
       "id": "head",

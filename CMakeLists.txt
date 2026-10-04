@@ -53,6 +53,11 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/canokey-build-metadata.json"
         "  \"compiler_id\": \"${CMAKE_C_COMPILER_ID}\",\n"
         "  \"compiler_version\": \"${CMAKE_C_COMPILER_VERSION}\"\n}\n")
 
+if(EXISTS "${CANOKEY_CORE_DIR}/crates/ffi/Cargo.toml")
+        include(cmake/RustFirmware.cmake)
+        return()
+endif()
+
 set(VIRTCARD ON CACHE BOOL "Enable VIRTCARD in core" FORCE)
 set(ENABLE_DEBUG_OUTPUT ${CANOKEY_CORE_DEBUG_OUTPUT} CACHE BOOL "canokey-core debug output" FORCE)
 # USB/IP currently exports CTAP HID, WebUSB, and CCID. Keep the optional
