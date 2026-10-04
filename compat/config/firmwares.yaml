@@ -46,7 +46,7 @@
     },
     {
       "id": "4.0.0",
-      "core_commit": "f28e8f6b2d1dd3e780e28c2cbc668c34adbf90cf"
+      "core_commit": "81972216e4131b5dfd74dac32002a058e8f2ff52"
     }
   ],
   "aliases": {
@@ -122,8 +122,8 @@
     },
     {
       "id": "4.0.0",
-      "ref": "f28e8f6b2d1dd3e780e28c2cbc668c34adbf90cf",
-      "verified_sha": "f28e8f6b2d1dd3e780e28c2cbc668c34adbf90cf",
+      "ref": "81972216e4131b5dfd74dac32002a058e8f2ff52",
+      "verified_sha": "81972216e4131b5dfd74dac32002a058e8f2ff52",
       "adapter": "rust-usb-runtime",
       "usb_vid": "20a0",
       "usb_pid": "42d4",
