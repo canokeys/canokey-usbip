@@ -24,7 +24,7 @@ class CatalogTests(unittest.TestCase):
         ids = [item["id"] for item in list_firmwares(self.config, "nightly")]
         self.assertEqual(ids, [
             "1.3", "1.5.2", "1.6.1", "1.6.2",
-            "2.0.0", "2.0.1", "3.0.0", "3.0.1", "3.1.0", "4.0.0", "head",
+            "2.0.0", "2.0.1", "3.0.0", "3.0.1", "3.1.0", "3.1.1", "4.0.0", "head",
         ])
 
     def test_release_mapping(self):
@@ -39,6 +39,7 @@ class CatalogTests(unittest.TestCase):
             "3.0.0": "7cb33508a69ce4d281a053e1e53e6d006469076b",
             "3.0.1": "69e562bcb07eedda015aae6064870c8548571e2b",
             "3.1.0": "e558d5cc6169acca1508238f7b584b8e00f8786d",
+            "3.1.1": "cba7ea34c893eb6405620e9f2b562de0c441b1d6",
             "4.0.0": "81972216e4131b5dfd74dac32002a058e8f2ff52",
         })
 

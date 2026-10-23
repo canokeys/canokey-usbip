@@ -30,10 +30,10 @@ jobs:
           python3 -m unittest discover -s compat/tests -v
           git diff --check
 
-      - name: Build against the latest mapped release core
+      - name: Build against the latest mapped C release core
         run: |
           ./compat/build \
-            --core-ref e558d5cc6169acca1508238f7b584b8e00f8786d \
+            --core-ref cba7ea34c893eb6405620e9f2b562de0c441b1d6 \
             --output-dir "$PWD/artifacts/build"
 
       - name: Install Rust firmware toolchain
@@ -50,7 +50,7 @@ jobs:
         run: |
           cmake -S . -B build/protocol \
             -DENABLE_TESTS=ON \
-            -DCANOKEY_FIRMWARE_VERSION=3.1.0
+            -DCANOKEY_FIRMWARE_VERSION=3.1.1
           cmake --build build/protocol --target canokey-usbip-nfc-enable-test --parallel
           ctest --test-dir build/protocol -R '^nfc-enable-protocol$' --output-on-failure
 

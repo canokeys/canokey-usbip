@@ -30,7 +30,7 @@ enumeration/CCID check is available as `python3 tests/rust_ccid.py BUILD/canokey
 
 ```bash
 ./compat/run \
-  --core-ref 3.1.0 \
+  --core-ref 3.1.1 \
   --test-command 'python3 -c "print(\"test\")"'
 ```
 
@@ -38,7 +38,7 @@ An infrastructure smoke command that checks both USB and PC/SC is:
 
 ```bash
 ./compat/run \
-  --core-ref 3.1.0 \
+  --core-ref 3.1.1 \
   --test-command 'lsusb -d "$CANOKEY_USB_VID:$CANOKEY_USB_PID" && test -n "$CANOKEY_PCSC_READER"'
 ```
 
@@ -85,7 +85,7 @@ Callers that only need selected device layers can repeat `--require` to define r
 
 ```bash
 ./compat/run \
-  --core-ref 3.1.0 \
+  --core-ref 3.1.1 \
   --require usb \
   --require ccid \
   --require pcsc \
@@ -107,13 +107,13 @@ Direct CMake also supports external core trees without changing the submodule po
 ```bash
 cmake -S . -B build \
   -DCANOKEY_CORE_DIR=/workspace/canokey-core \
-  -DCANOKEY_FIRMWARE_VERSION=3.1.0
+  -DCANOKEY_FIRMWARE_VERSION=3.1.1
 cmake --build build --target canokey-usbip
 ```
 
 Use `compat/run` or `compat/build` for cataloged releases that need core
 compatibility patches. Firmware 1.3 needs the legacy virtual-card source, and
-3.1.0 needs its blank-storage fabrication sequence adapted to the newer
+3.1.x needs its blank-storage fabrication sequence adapted to the newer
 touch-gated factory reset. Direct CMake does not apply these patches.
 
 ## Public test environment
@@ -198,8 +198,8 @@ make the called repository's files the job workspace.
 
 ### Host application CI
 
-This example tests the current `canokey-pkcs11` PR against the smoke firmware set. The application
-test scripts remain in `canokey-pkcs11`:
+This example tests the current `canokey-pkcs11` PR against representative C firmware versions.
+The application test scripts remain in `canokey-pkcs11`:
 
 ```yaml
 jobs:
@@ -209,7 +209,7 @@ jobs:
       matrix:
         firmware:
           - { id: oldest, ref: "5f1e95f8341856d994abb4566995e2379cc0612d" }
-          - { id: latest, ref: "e558d5cc6169acca1508238f7b584b8e00f8786d" }
+          - { id: latest-c, ref: "cba7ea34c893eb6405620e9f2b562de0c441b1d6" }
           - { id: head, ref: "master" }
     uses: canokeys/canokey-usbip/.github/workflows/usbip-integration.yml@master
     with:

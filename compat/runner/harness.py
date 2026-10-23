@@ -33,6 +33,7 @@ CORE_URL = "https://github.com/canokeys/canokey-core.git"
 CORE_COMPAT_PATCHES = {
     "5f1e95f8341856d994abb4566995e2379cc0612d": ("core-1.3-legacy-device-sim.patch",),
     "e558d5cc6169acca1508238f7b584b8e00f8786d": ("core-3.1.0-fabrication.patch",),
+    "cba7ea34c893eb6405620e9f2b562de0c441b1d6": ("core-3.1.0-fabrication.patch",),
 }
 CORE_COMPAT_PATCH_SKIP_IF_PRESENT = {
     "core-1.3-legacy-device-sim.patch": Path("virt-card/device-sim.c"),

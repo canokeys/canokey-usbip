@@ -297,12 +297,12 @@ class HarnessTests(unittest.TestCase):
         self.assertFalse((source / "device-sim.c").exists())
 
     def test_3_1_fabrication_patch_skips_redundant_factory_reset(self):
-        sha = "e558d5cc6169acca1508238f7b584b8e00f8786d"
+        sha = "cba7ea34c893eb6405620e9f2b562de0c441b1d6"
         source = self.root / "source-core" / "virt-card"
         source.mkdir(parents=True)
         snapshot = self.root / "snapshot" / "virt-card"
         snapshot.mkdir(parents=True)
-        existing_device_sim = "/* present in 3.1.0 */\n"
+        existing_device_sim = "/* present in 3.1.x */\n"
         (snapshot / "device-sim.c").write_text(existing_device_sim)
         original = (
             "int card_fabrication_procedure(const char *lfs_root) {\n"
