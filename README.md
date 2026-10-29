@@ -30,7 +30,7 @@ enumeration/CCID check is available as `python3 tests/rust_ccid.py BUILD/canokey
 
 ```bash
 ./compat/run \
-  --core-ref 3.1.1 \
+  --core-ref 3.1.2 \
   --test-command 'python3 -c "print(\"test\")"'
 ```
 
@@ -38,7 +38,7 @@ An infrastructure smoke command that checks both USB and PC/SC is:
 
 ```bash
 ./compat/run \
-  --core-ref 3.1.1 \
+  --core-ref 3.1.2 \
   --test-command 'lsusb -d "$CANOKEY_USB_VID:$CANOKEY_USB_PID" && test -n "$CANOKEY_PCSC_READER"'
 ```
 
@@ -85,7 +85,7 @@ Callers that only need selected device layers can repeat `--require` to define r
 
 ```bash
 ./compat/run \
-  --core-ref 3.1.1 \
+  --core-ref 3.1.2 \
   --require usb \
   --require ccid \
   --require pcsc \
@@ -107,7 +107,7 @@ Direct CMake also supports external core trees without changing the submodule po
 ```bash
 cmake -S . -B build \
   -DCANOKEY_CORE_DIR=/workspace/canokey-core \
-  -DCANOKEY_FIRMWARE_VERSION=3.1.1
+  -DCANOKEY_FIRMWARE_VERSION=3.1.2
 cmake --build build --target canokey-usbip
 ```
 
@@ -209,7 +209,7 @@ jobs:
       matrix:
         firmware:
           - { id: oldest, ref: "5f1e95f8341856d994abb4566995e2379cc0612d" }
-          - { id: latest-c, ref: "cba7ea34c893eb6405620e9f2b562de0c441b1d6" }
+          - { id: latest-c, ref: "a349b268e12953dd85169e9649091c4f91ce7c68" }
           - { id: head, ref: "master" }
     uses: canokeys/canokey-usbip/.github/workflows/usbip-integration.yml@master
     with:
